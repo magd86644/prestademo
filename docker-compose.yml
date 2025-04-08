@@ -11,5 +11,8 @@ services:
       - DB_PASSWORD=                      
       - PS_DEV_MODE=0                    # Enable development mode (optional)
     volumes:
-      - ./prestashop_data:/var/www/html  
+      - prestashop_data:/var/www/html
+      - ./modules/mycustommodule:/var/www/html/modules/mycustommodule
     restart: unless-stopped
+volumes:
+  prestashop_data:
