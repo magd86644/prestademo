@@ -1,0 +1,4 @@
+prestashop_data/var/cache/**/*.data
+prestashop_data/var/logs/dev.log
+prestashop_data/var/logs/prod.log
+prestashop_data/var/logs/ps_accounts-2025-04-09
