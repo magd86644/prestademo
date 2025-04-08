@@ -1,0 +1,17 @@
+868e09,172.20.0.1,GET,http://localhost:8080/admin612qzcmt5/index.php/modules/metrics/api/getShopData?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk,1744149500,,200
+ef1637,172.20.0.1,POST,http://localhost:8080/admin612qzcmt5/index.php/common/notifications?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk&rand=1744149472380,1744149553,,200
+a50c68,172.20.0.1,POST,http://localhost:8080/admin612qzcmt5/index.php/common/notifications?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk&rand=1744149472413,1744149598,,200
+1a678f,172.20.0.1,GET,http://localhost:8080/admin612qzcmt5/index.php/sell/catalog/products/new?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk,1744149720,,302
+67b851,172.20.0.1,POST,http://localhost:8080/admin612qzcmt5/index.php/common/notifications?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk&rand=1744149676341,1744149734,,200
+528e3f,172.20.0.1,GET,http://localhost:8080/admin612qzcmt5/index.php/_fragment?_path=_format%3Dhtml%26_locale%3Den-US%26_controller%3DPrestaShopBundle%253AAdmin%252FCommon%253ArenderField,1744149843,8a6c12,200
+8a6c12,172.20.0.1,GET,http://localhost:8080/admin612qzcmt5/index.php/sell/catalog/products/20?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk,1744149866,,200
+6f37eb,172.20.0.1,POST,http://localhost:8080/admin612qzcmt5/index.php/common/notifications?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk&rand=1744149731208,1744149885,,200
+1c40b0,172.20.0.1,POST,http://localhost:8080/admin612qzcmt5/index.php/common/notifications?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk&rand=1744149858458,1744149902,,200
+9b5226,172.20.0.1,POST,http://localhost:8080/admin612qzcmt5/index.php/common/notifications?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk,1744149922,,200
+e8a28d,172.20.0.1,POST,http://localhost:8080/admin612qzcmt5/index.php/common/notifications?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk&rand=1744149883564,1744149933,,200
+81bf58,172.20.0.1,GET,http://localhost:8080/admin612qzcmt5/index.php/sell/catalog/products/specific-prices/list/20?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk,1744149962,,200
+b4a4d4,172.20.0.1,GET,http://localhost:8080/admin612qzcmt5/index.php/sell/catalog/products/attributes/get-all?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk,1744149984,,200
+8293ee,172.20.0.1,GET,http://localhost:8080/admin612qzcmt5/index.php/sell/catalog/products/attributes/form-images/20?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk,1744150024,,200
+d192d4,172.20.0.1,POST,http://localhost:8080/admin612qzcmt5/index.php/common/notifications?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk,1744150071,,200
+fb80a3,172.20.0.1,POST,http://localhost:8080/admin612qzcmt5/index.php/common/notifications?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk&rand=1744150056578,1744150095,,200
+3c17dd,172.20.0.1,POST,http://localhost:8080/admin612qzcmt5/index.php/common/notifications?_token=PKgema0hmF-RHgXL7SQ8t-xINgI8Oom7DBlErM4ZPIk,1744150236,,200
