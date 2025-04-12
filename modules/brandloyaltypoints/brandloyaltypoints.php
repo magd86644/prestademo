@@ -5,7 +5,7 @@ if (!defined('_PS_VERSION_')) {
 
 class BrandLoyaltyPoints extends Module
 {
-   
+
 
     public function __construct()
     {
@@ -29,14 +29,27 @@ class BrandLoyaltyPoints extends Module
             return false;
         }
 
-        // Create tab manually
+        $sql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'loyalty_points` (
+            `id_loyalty_points` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `id_customer` INT UNSIGNED NOT NULL,
+            `id_manufacturer` INT UNSIGNED NOT NULL,  
+            `points` INT NOT NULL DEFAULT 0,
+            `last_updated` DATETIME NOT NULL
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8';
+    
+        if (!Db::getInstance()->execute($sql)) {
+            $error = Db::getInstance()->getMsgError();  // Capture the error message
+            PrestaShopLogger::addLog('Error creating loyalty points table: ' . $error, 3);
+            return false;
+        }
+
+        // Create tab manually for the admin controller
         $tab = new Tab();
         $tab->active = 1;
         $tab->class_name = 'AdminBrandLoyaltyPoints'; // Unique name for your tab
         $tab->module = $this->name;
 
-        // Find parent tab ID (AdminDashboard)
-        // $id_parent = Tab::getIdFromClassName('AdminDashboard');
+        // Find parent tab ID (AdminCatalog)
         $tab->id_parent = (int) Tab::getIdFromClassName('AdminCatalog');
 
         // Set name for all available languages
@@ -46,6 +59,7 @@ class BrandLoyaltyPoints extends Module
 
         return $tab->add();
     }
+
 
     public function uninstall()
     {
@@ -59,6 +73,9 @@ class BrandLoyaltyPoints extends Module
 
     public function getContent()
     {
+        $this->context->smarty->assign([
+            'your_variable' => 'Hello from AdminBrandLoyaltyPoints!',
+        ]);
         return $this->display(__FILE__, 'views/templates/admin/configure.tpl');
     }
 }
