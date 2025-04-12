@@ -12,7 +12,7 @@ services:
       - PS_DEV_MODE=0                    # Enable development mode (optional)
     volumes:
       - prestashop_data:/var/www/html
-      - ./modules/mycustommodule:/var/www/html/modules/mycustommodule
+      - ./modules/brandloyaltypoints:/var/www/html/modules/brandloyaltypoints
     restart: unless-stopped
 volumes:
   prestashop_data:
