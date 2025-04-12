@@ -36,10 +36,18 @@ class BrandLoyaltyPoints extends Module
             `points` INT NOT NULL DEFAULT 0,
             `last_updated` DATETIME NOT NULL
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8';
-    
+
         if (!Db::getInstance()->execute($sql)) {
             $error = Db::getInstance()->getMsgError();  // Capture the error message
             PrestaShopLogger::addLog('Error creating loyalty points table: ' . $error, 3);
+            return false;
+        }
+
+        if (
+            !$this->registerHook('actionCartSave') ||
+            !$this->registerHook('displayShoppingCartFooter') ||
+            !$this->registerHook('actionFrontControllerSetMedia')
+        ) {
             return false;
         }
 
@@ -57,7 +65,11 @@ class BrandLoyaltyPoints extends Module
             $tab->name[$lang['id_lang']] = $this->l('Loyalty Points');
         }
 
-        return $tab->add();
+        if (!$tab->add()) {
+            PrestaShopLogger::addLog('Error creating AdminBrandLoyaltyPoints tab.', 3);
+            return false;
+        }
+        return true;
     }
 
 
@@ -77,5 +89,75 @@ class BrandLoyaltyPoints extends Module
             'your_variable' => 'Hello from AdminBrandLoyaltyPoints!',
         ]);
         return $this->display(__FILE__, 'views/templates/admin/configure.tpl');
+    }
+
+    public function hookActionFrontControllerSetMedia($params)
+    {
+        if ($this->context->controller->php_self == 'cart') {
+            $this->context->controller->registerStylesheet(
+                'brandloyaltypoints-styles',
+                'modules/' . $this->name . '/views/css/loyalty_points.css',
+                [
+                    'media' => 'all',
+                    'priority' => 150,
+                ]
+            );
+        }
+    }
+    public function hookActionCartSave($params)
+    {
+        $cart = $this->context->cart;
+        $customerId = (int) $cart->id_customer;
+
+        if (!$customerId) {
+            return; // Skip for guest users
+        }
+
+        foreach ($cart->getProducts() as $product) {
+            $brandId = (int) $product['id_manufacturer'];
+            $productTotal = (float) $product['total'];
+
+            if ($brandId > 0) {
+                $points = (int) $productTotal; // 1€ = 1 point
+
+                Db::getInstance()->execute(
+                    'INSERT INTO `' . _DB_PREFIX_ . 'loyalty_points` (`id_customer`, `id_manufacturer`, `points`) 
+                VALUES (' . (int)$customerId . ', ' . (int)$brandId . ', ' . (int)$points . ')
+                ON DUPLICATE KEY UPDATE points = points + ' . (int)$points
+                );
+            }
+        }
+    }
+
+
+    public function hookDisplayShoppingCartFooter($params)
+    {
+        $customerId = (int) $this->context->customer->id;
+
+        if (!$customerId) {
+            return '';
+        }
+
+        // Adjust the query to group by manufacturer and sum points
+        $pointsData = Db::getInstance()->executeS(
+            'SELECT m.name AS manufacturer_name, SUM(lp.points) AS total_points
+        FROM `' . _DB_PREFIX_ . 'loyalty_points` lp
+        LEFT JOIN `' . _DB_PREFIX_ . 'manufacturer` m ON m.id_manufacturer = lp.id_manufacturer
+        WHERE lp.id_customer = ' . $customerId . '
+        GROUP BY lp.id_manufacturer'
+        );
+
+        // Assign to Smarty
+        $this->context->smarty->assign([
+            'pointsData' => $pointsData,
+        ]);
+
+        $this->context->controller->addCSS($this->_path . 'views/css/loyalty_points.css');
+
+        // Using custom path for display
+        return $this->display(
+            _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
+            'views/templates/front/loyalty_points_display.tpl'
+        );
     }
 }
