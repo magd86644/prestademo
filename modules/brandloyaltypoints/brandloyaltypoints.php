@@ -34,7 +34,9 @@ class BrandLoyaltyPoints extends Module
             `id_customer` INT UNSIGNED NOT NULL,
             `id_manufacturer` INT UNSIGNED NOT NULL,  
             `points` INT NOT NULL DEFAULT 0,
-            `last_updated` DATETIME NOT NULL
+            `last_updated` DATETIME NOT NULL,
+            CONSTRAINT `fk_customer_id` FOREIGN KEY (`id_customer`) REFERENCES `' . _DB_PREFIX_ . 'customer` (`id_customer`) ON DELETE CASCADE,
+            CONSTRAINT `fk_manufacturer_id` FOREIGN KEY (`id_manufacturer`) REFERENCES `' . _DB_PREFIX_ . 'manufacturer` (`id_manufacturer`) ON DELETE CASCADE
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8';
 
         if (!Db::getInstance()->execute($sql)) {
@@ -102,6 +104,11 @@ class BrandLoyaltyPoints extends Module
                     'priority' => 150,
                 ]
             );
+            $this->context->controller->registerJavascript(
+                'brandloyaltypoints-apply',
+                'modules/' . $this->name . '/views/js/loyalty_points_apply.js',
+                ['position' => 'bottom', 'priority' => 150]
+            );
         }
     }
     public function hookActionCartSave($params)
@@ -138,7 +145,7 @@ class BrandLoyaltyPoints extends Module
             return '';
         }
 
-        // Adjust the query to group by manufacturer and sum points
+        // Query: get loyalty points grouped by brand
         $pointsData = Db::getInstance()->executeS(
             'SELECT m.name AS manufacturer_name, SUM(lp.points) AS total_points
         FROM `' . _DB_PREFIX_ . 'loyalty_points` lp
@@ -147,17 +154,34 @@ class BrandLoyaltyPoints extends Module
         GROUP BY lp.id_manufacturer'
         );
 
-        // Assign to Smarty
+        // Assign points to Smarty
         $this->context->smarty->assign([
+            'loyaltyPointsApplyUrl' => $this->context->link->getModuleLink($this->name, 'applyloyaltypoints'),
             'pointsData' => $pointsData,
         ]);
+       
+        // Make sure the CSS is loaded
+        // $this->context->controller->addCSS($this->_path . 'views/css/loyalty_points.css');
 
-        $this->context->controller->addCSS($this->_path . 'views/css/loyalty_points.css');
-
-        // Using custom path for display
-        return $this->display(
+        // Render both templates: display and apply button
+        $output = $this->display(
             _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
             'views/templates/front/loyalty_points_display.tpl'
         );
+
+        $output .= $this->display(
+            _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
+            'views/templates/front/loyalty_points_apply_button.tpl'
+        );
+        // $test = $this->display(
+        //     _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
+        //     'views/templates/front/loyalty_points_apply_button.tpl'
+        // );
+
+        return $output;
+        // return $this->display(
+        //     _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
+        //     'views/templates/front/loyalty_points_display.tpl'
+        // );
     }
 }
