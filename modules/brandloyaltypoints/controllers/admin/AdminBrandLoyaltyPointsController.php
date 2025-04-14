@@ -2,6 +2,7 @@
 require_once _PS_MODULE_DIR_ . 'brandloyaltypoints/classes/LoyaltyPoints.php';
 class AdminBrandLoyaltyPointsController extends ModuleAdminController
 {
+
     public function __construct()
     {
         $this->table = 'loyalty_points';
@@ -60,6 +61,7 @@ class AdminBrandLoyaltyPointsController extends ModuleAdminController
     ';
 
         $this->processFilter();
+        $this->addRowAction('delete');
         return parent::renderList();
     }
 

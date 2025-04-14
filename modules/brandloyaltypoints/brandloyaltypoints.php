@@ -36,8 +36,9 @@ class BrandLoyaltyPoints extends Module
             `points` INT NOT NULL DEFAULT 0,
             `last_updated` DATETIME NOT NULL,
             CONSTRAINT `fk_customer_id` FOREIGN KEY (`id_customer`) REFERENCES `' . _DB_PREFIX_ . 'customer` (`id_customer`) ON DELETE CASCADE,
-            CONSTRAINT `fk_manufacturer_id` FOREIGN KEY (`id_manufacturer`) REFERENCES `' . _DB_PREFIX_ . 'manufacturer` (`id_manufacturer`) ON DELETE CASCADE
-        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8';
+            CONSTRAINT `fk_manufacturer_id` FOREIGN KEY (`id_manufacturer`) REFERENCES `' . _DB_PREFIX_ . 'manufacturer` (`id_manufacturer`) ON DELETE CASCADE,
+            UNIQUE KEY `customer_brand_unique` (`id_customer`, `id_manufacturer`)
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8';        
 
         if (!Db::getInstance()->execute($sql)) {
             $error = Db::getInstance()->getMsgError();  // Capture the error message
@@ -46,9 +47,10 @@ class BrandLoyaltyPoints extends Module
         }
 
         if (
-            !$this->registerHook('actionCartSave') ||
+            !$this->registerHook('actionValidateOrder') ||
             !$this->registerHook('displayShoppingCartFooter') ||
-            !$this->registerHook('actionFrontControllerSetMedia')
+            !$this->registerHook('actionFrontControllerSetMedia') ||
+            !$this->registerHook('displayShoppingCart')
         ) {
             return false;
         }
@@ -111,32 +113,36 @@ class BrandLoyaltyPoints extends Module
             );
         }
     }
-    public function hookActionCartSave($params)
+
+    public function hookActionValidateOrder($params)
     {
-        $cart = $this->context->cart;
-        $customerId = (int) $cart->id_customer;
+        /** @var Order $order */
+        PrestaShopLogger::addLog('action validate order', 1, null, 'Cart', 1, true);
+        $order = $params['order'];
+        $customerId = (int) $order->id_customer;
 
         if (!$customerId) {
-            return; // Skip for guest users
+            return;
         }
 
-        foreach ($cart->getProducts() as $product) {
-            $brandId = (int) $product['id_manufacturer'];
-            $productTotal = (float) $product['total'];
+        $products = $order->getProducts();
 
-            if ($brandId > 0) {
+        foreach ($products as $product) {
+            $brandId = (int) $product['id_manufacturer'];
+            $productTotal = (float) $product['total_price_tax_incl']; // points based on price incl tax
+
+            if ($brandId > 0 && $productTotal > 0) {
                 $points = (int) $productTotal; // 1€ = 1 point
 
                 Db::getInstance()->execute(
-                    'INSERT INTO `' . _DB_PREFIX_ . 'loyalty_points` (`id_customer`, `id_manufacturer`, `points`) 
-                VALUES (' . (int)$customerId . ', ' . (int)$brandId . ', ' . (int)$points . ')
-                ON DUPLICATE KEY UPDATE points = points + ' . (int)$points
+                    'INSERT INTO `' . _DB_PREFIX_ . 'loyalty_points` 
+                (`id_customer`, `id_manufacturer`, `points`, `last_updated`) 
+                VALUES (' . (int)$customerId . ', ' . (int)$brandId . ', ' . (int)$points . ', NOW())
+                ON DUPLICATE KEY UPDATE points = points + ' . (int)$points . ', last_updated = NOW()'
                 );
             }
         }
     }
-
-
     public function hookDisplayShoppingCartFooter($params)
     {
         $customerId = (int) $this->context->customer->id;
@@ -157,13 +163,11 @@ class BrandLoyaltyPoints extends Module
         // Assign points to Smarty
         $this->context->smarty->assign([
             'loyaltyPointsApplyUrl' => $this->context->link->getModuleLink($this->name, 'applyloyaltypoints'),
+            'loyaltyPointsRemoveUrl' => $this->context->link->getModuleLink($this->name, 'removeloyaltypoints'),
             'pointsData' => $pointsData,
         ]);
-       
-        // Make sure the CSS is loaded
-        // $this->context->controller->addCSS($this->_path . 'views/css/loyalty_points.css');
 
-        // Render both templates: display and apply button
+
         $output = $this->display(
             _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
             'views/templates/front/loyalty_points_display.tpl'
@@ -173,15 +177,20 @@ class BrandLoyaltyPoints extends Module
             _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
             'views/templates/front/loyalty_points_apply_button.tpl'
         );
-        // $test = $this->display(
-        //     _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
-        //     'views/templates/front/loyalty_points_apply_button.tpl'
-        // );
 
         return $output;
-        // return $this->display(
-        //     _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
-        //     'views/templates/front/loyalty_points_display.tpl'
-        // );
+    }
+
+    public function hookDisplayShoppingCart($params)
+    {
+        $this->context->smarty->assign([
+            'my_custom_text' => 'Check my payment website'
+        ]);
+
+        // return $this->display(__FILE__, 'views/templates/hook/cart_inside.tpl');
+        return $this->display(
+            _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
+            'views/templates/hook/cart_inside.tpl'
+        );
     }
 }

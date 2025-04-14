@@ -4,8 +4,12 @@
         <button id="apply-loyalty-points" class="btn btn-success">
             Apply Loyalty Points Now
         </button>
+        <button id="remove-loyalty-points" class="btn btn-outline-danger">
+            Remove Loyalty Points
+        </button>
     </div>
     <script>
         var applyLoyaltyPointsUrl = '{$loyaltyPointsApplyUrl|escape:'javascript'}';
+        var removeLoyaltyPointsUrl = '{$loyaltyPointsRemoveUrl|escape:'javascript'}';
     </script>
 {/if}
