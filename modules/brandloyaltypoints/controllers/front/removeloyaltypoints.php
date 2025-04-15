@@ -29,18 +29,17 @@ class BrandLoyaltyPointsRemoveLoyaltyPointsModuleFrontController extends ModuleF
 
                 // Remove it from the cart
                 if ($cart->removeCartRule($cartRule->id)) {
+                    // $cart->update();
                     $removedAny = true;
-
-                    // If you want, you could also restore points here.
-                    // But usually points are only truly "spent" when the order is confirmed.
                 }
             }
         }
 
         if ($removedAny) {
+            $cartRule->delete();
             $this->ajaxDie(json_encode([
                 'success' => true,
-                'message' => 'Loyalty points discount removed from your cart.'
+                'message' => 'Loyalty points discount removed from your cart :)'
             ]));
         } else {
             $this->ajaxDie(json_encode([

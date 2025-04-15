@@ -33,7 +33,8 @@ class BrandLoyaltyPointsApplyLoyaltyPointsModuleFrontController extends ModuleFr
         }
 
         // Get loyalty points for this customer
-        $loyaltyData = Db::getInstance()->executeS('
+        $loyaltyData = Db::getInstance()->executeS(
+            '
             SELECT id_manufacturer, points 
             FROM `' . _DB_PREFIX_ . 'loyalty_points` 
             WHERE id_customer = ' . $customerId
@@ -49,9 +50,10 @@ class BrandLoyaltyPointsApplyLoyaltyPointsModuleFrontController extends ModuleFr
         
                 // 💡 check if already applied
                 $existingRules = $cart->getCartRules();
+                $expectedRuleName = $this->getLoyaltyCartRuleName($manufacturerId);
                 $alreadyApplied = false;
                 foreach ($existingRules as $rule) {
-                    if (strpos($rule['name'], 'Loyalty Discount (Brand ID: ' . $manufacturerId . ')') !== false) {
+                    if ($rule['name'] === $expectedRuleName) {
                         $alreadyApplied = true;
                         break;
                     }
@@ -71,7 +73,7 @@ class BrandLoyaltyPointsApplyLoyaltyPointsModuleFrontController extends ModuleFr
         
                 // Create new CartRule
                 $cartRule = new CartRule();
-                $cartRule->description = 'Loyalty points discount for brand ID ' . $manufacturerId;
+                $cartRule->description = $cartRule->description = 'Loyalty points discount for brand #' . $manufacturerId;
                 $cartRule->id_customer = $customerId;
                 $cartRule->date_from = date('Y-m-d H:i:s');
                 $cartRule->date_to = date('Y-m-d H:i:s', strtotime('+1 day'));
@@ -84,24 +86,25 @@ class BrandLoyaltyPointsApplyLoyaltyPointsModuleFrontController extends ModuleFr
                 $cartRule->free_shipping = false;
         
                 foreach (Language::getLanguages(true) as $lang) {
-                    $cartRule->name[$lang['id_lang']] = 'Loyalty Discount (Brand ID: ' . $manufacturerId . ')';
+                    $cartRule->name[$lang['id_lang']] = $this->getLoyaltyCartRuleName($manufacturerId);
                 }
         
                 if ($cartRule->add()) {
                     $cart->addCartRule($cartRule->id);
                     $appliedAny = true;
         
-                    $pointsUsed = floor($discountToApply / 0.1);
+                    // $pointsUsed = floor($discountToApply / 0.1); // this should be deducted when order is validated
+                    // SET points = points - ' . $pointsUsed . ', last_updated = NOW() 
                     Db::getInstance()->execute('
                         UPDATE `' . _DB_PREFIX_ . 'loyalty_points` 
-                        SET points = points - ' . $pointsUsed . ', last_updated = NOW() 
+                        SET id_cart_rule = ' . (int)$cartRule->id . ', last_updated = NOW()
                         WHERE id_customer = ' . $customerId . ' 
                         AND id_manufacturer = ' . $manufacturerId . '
                     ');
                 }
             }
         }
-        
+
 
         if ($appliedAny) {
             $this->ajaxDie(json_encode([
@@ -114,5 +117,19 @@ class BrandLoyaltyPointsApplyLoyaltyPointsModuleFrontController extends ModuleFr
                 'message' => 'No applicable loyalty points found for the items in your cart.'
             ]));
         }
+    }
+
+
+    /**
+     * Generates the loyalty discount cart rule name for a given brand.
+     *
+     * @param int $manufacturerId
+     * @return string
+     */
+    private function getLoyaltyCartRuleName($manufacturerId)
+    {
+        $brand = new Manufacturer($manufacturerId, $this->context->language->id);
+        $brandName = $brand->name ?: ('Brand #' . $manufacturerId);
+        return sprintf('Loyalty Discount for %s', $brandName);
     }
 }

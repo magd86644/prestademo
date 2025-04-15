@@ -22,7 +22,8 @@ class BrandLoyaltyPoints extends Module
         $this->description = $this->l('Adds a loyalty points tab under Dashboard.');
         $this->ps_versions_compliancy = ['min' => '1.7.0.0', 'max' => _PS_VERSION_];
     }
-
+    // TODO when removing the cart rule, remove the record rule id  from the loyalty points table
+    // TODO add a cron job to remove old records from the loyalty points table (older than 1 year)
     public function install()
     {
         if (!parent::install()) {
@@ -32,13 +33,14 @@ class BrandLoyaltyPoints extends Module
         $sql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'loyalty_points` (
             `id_loyalty_points` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             `id_customer` INT UNSIGNED NOT NULL,
-            `id_manufacturer` INT UNSIGNED NOT NULL,  
+            `id_manufacturer` INT UNSIGNED NOT NULL,
             `points` INT NOT NULL DEFAULT 0,
             `last_updated` DATETIME NOT NULL,
+            `id_cart_rule` INT UNSIGNED DEFAULT NULL,
             CONSTRAINT `fk_customer_id` FOREIGN KEY (`id_customer`) REFERENCES `' . _DB_PREFIX_ . 'customer` (`id_customer`) ON DELETE CASCADE,
             CONSTRAINT `fk_manufacturer_id` FOREIGN KEY (`id_manufacturer`) REFERENCES `' . _DB_PREFIX_ . 'manufacturer` (`id_manufacturer`) ON DELETE CASCADE,
             UNIQUE KEY `customer_brand_unique` (`id_customer`, `id_manufacturer`)
-        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8';        
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8';
 
         if (!Db::getInstance()->execute($sql)) {
             $error = Db::getInstance()->getMsgError();  // Capture the error message

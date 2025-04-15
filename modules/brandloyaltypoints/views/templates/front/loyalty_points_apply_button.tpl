@@ -13,3 +13,4 @@
         var removeLoyaltyPointsUrl = '{$loyaltyPointsRemoveUrl|escape:'javascript'}';
     </script>
 {/if}
+<div id="loyalty-message-container"></div>

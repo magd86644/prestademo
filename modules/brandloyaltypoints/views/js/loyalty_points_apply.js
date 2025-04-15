@@ -1,31 +1,42 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const applyBtn = document.getElementById('apply-loyalty-points');
-    if (applyBtn) {
-        applyBtn.addEventListener('click', function() {
-            fetch(applyLoyaltyPointsUrl, {  // dynamic global variable!
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'}
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-                if (data.success) {
-                    location.reload();
-                }
-            });
-        });
+$(document).ready(function() {
+    const $messageContainer = $('#loyalty-message-container');
+
+    function showLoyaltyMessage(message, type = 'success') {
+        console.log(message);
+        $messageContainer.html(`
+            <div class="alert alert-${type} alert-dismissible" role="alert">
+                ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        `);
     }
-    $('#remove-loyalty-points').on('click', function() {
-        console.log('Remove loyalty points clicked');
+
+    function handleLoyaltyAction(url) {
         $.ajax({
-            url: removeLoyaltyPointsUrl,
+            url: url,
             method: 'POST',
+            dataType: 'json',
             success: function(response) {
-                let res = JSON.parse(response);
-                alert(res.message);
-                location.reload(); // Reload cart totals
+                showLoyaltyMessage(response.message, response.success ? 'success' : 'warning');
+                if (response.success) {
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1500);
+                }
+            },
+            error: function() {
+                showLoyaltyMessage('An unexpected error occurred, please try again.', 'danger');
             }
         });
+    }
+
+    $('#apply-loyalty-points').on('click', function() {
+        handleLoyaltyAction(applyLoyaltyPointsUrl);
     });
-    
+
+    $('#remove-loyalty-points').on('click', function() {
+        handleLoyaltyAction(removeLoyaltyPointsUrl);
+    });
 });
