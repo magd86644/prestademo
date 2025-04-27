@@ -119,7 +119,8 @@ class BrandLoyaltyPoints extends Module
     public function hookActionValidateOrder($params)
     {
         /** @var Order $order */
-        PrestaShopLogger::addLog('action validate order', 1, null, 'Cart', 1, true);
+        PrestaShopLogger::addLog('Action Validate Order Hook Triggered', 1, null, 'Cart', 1, true);
+
         $order = $params['order'];
         $customerId = (int) $order->id_customer;
 
@@ -127,23 +128,111 @@ class BrandLoyaltyPoints extends Module
             return;
         }
 
-        $products = $order->getProducts();
+        $usedCartRules = $order->getCartRules();
+        PrestaShopLogger::addLog('Used Cart Rules: ' . json_encode($usedCartRules), 1, null, 'Cart', 1, true);
+        $this->handleUsedPointsDeduction($usedCartRules, $customerId);
+        $this->grantLoyaltyPointsBasedOnPaidAmount($order, $usedCartRules, $customerId);
+    }
 
-        foreach ($products as $product) {
-            $brandId = (int) $product['id_manufacturer'];
-            $productTotal = (float) $product['total_price_tax_incl']; // points based on price incl tax
+    /**
+     * Deducts loyalty points if customer used them in this order.
+     */
+    private function handleUsedPointsDeduction(array $usedCartRules, int $customerId): void
+    {
+        foreach ($usedCartRules as $cartRule) {
+            $cartRuleId = (int) $cartRule['id_cart_rule'];
 
-            if ($brandId > 0 && $productTotal > 0) {
-                $points = (int) $productTotal; // 1€ = 1 point
+            // Check if cart rule is a loyalty points usage rule
+            $pointsData = Db::getInstance()->getRow(
+                '
+            SELECT id_loyalty_points, points, id_manufacturer 
+            FROM `' . _DB_PREFIX_ . 'loyalty_points`
+            WHERE id_cart_rule = ' . $cartRuleId . '
+            AND id_customer = ' . $customerId
+            );
 
+            if ($pointsData) {
+                $discountAmount = (float) $cartRule['value'];
+                $pointsUsed = floor($discountAmount / 0.1);
+
+                if ($pointsUsed > $pointsData['points']) {
+                    PrestaShopLogger::addLog(
+                        "Loyalty program: Not enough points for deduction. Customer ID: $customerId, Manufacturer: {$pointsData['id_manufacturer']}",
+                        3
+                    );
+                    return;
+                }
+                PrestaShopLogger::addLog(
+                    "Loyalty program: Deducting points. Customer ID: $customerId, Points Used: $pointsUsed, Manufacturer: {$pointsData['id_manufacturer']}",
+                    1);
                 Db::getInstance()->execute(
-                    'INSERT INTO `' . _DB_PREFIX_ . 'loyalty_points` 
-                (`id_customer`, `id_manufacturer`, `points`, `last_updated`) 
-                VALUES (' . (int)$customerId . ', ' . (int)$brandId . ', ' . (int)$points . ', NOW())
-                ON DUPLICATE KEY UPDATE points = points + ' . (int)$points . ', last_updated = NOW()'
+                    '
+                UPDATE `' . _DB_PREFIX_ . 'loyalty_points`
+                SET points = GREATEST(0, points - ' . (int) $pointsUsed . '),
+                    id_cart_rule = NULL,
+                    last_updated = NOW()
+                WHERE id_loyalty_points = ' . (int) $pointsData['id_loyalty_points']
                 );
             }
         }
+    }
+
+    /**
+     * Grants loyalty points based on the real paid price after applying discounts.
+     */
+    private function grantLoyaltyPointsBasedOnPaidAmount(Order $order, array $usedCartRules, int $customerId): void
+    {
+        $products = $order->getProducts();
+        $totalOrderProductPrice = array_sum(array_column($products, 'total_price_tax_incl'));
+        // Sum the total loyalty points discount used in the order
+        $totalLoyaltyDiscount = $this->calculateTotalLoyaltyDiscount($usedCartRules);
+        PrestaShopLogger::addLog(
+            "Loyalty program: Total Loyalty Discount: $totalLoyaltyDiscount, Total Order Product Price: $totalOrderProductPrice",
+            1
+        );
+        // Avoid division by zero
+        if ($totalOrderProductPrice <= 0) {
+            return;
+        }
+        foreach ($products as $product) {
+            $brandId = (int) $product['id_manufacturer'];
+            $productTotal = (float) $product['total_price_tax_incl'];
+            if ($brandId <= 0 || $productTotal <= 0) {
+                continue;
+            }
+            // Calculate the proportional paid amount after loyalty discount
+            $productDiscountShare = ($productTotal / $totalOrderProductPrice) * $totalLoyaltyDiscount;
+            $paidAmount = $productTotal - $productDiscountShare;
+            if ($paidAmount <= 0) {
+                continue;
+            }
+
+            $earnedPoints = (int) $paidAmount; // 1€ = 1 point
+
+            Db::getInstance()->execute('
+            INSERT INTO `' . _DB_PREFIX_ . 'loyalty_points`
+            (`id_customer`, `id_manufacturer`, `points`, `last_updated`) 
+            VALUES (' . (int) $customerId . ', ' . (int) $brandId . ', ' . (int) $earnedPoints . ', NOW())
+            ON DUPLICATE KEY UPDATE 
+                points = points + ' . (int) $earnedPoints . ',
+                last_updated = NOW()
+        ');
+        }
+    }
+
+    /**
+     * Calculate the total loyalty-points-based discount used in the order.
+     */
+    private function calculateTotalLoyaltyDiscount(array $usedCartRules): float
+    {
+        $totalDiscount = 0.0;
+        foreach ($usedCartRules as $cartRule) {
+            if (strpos($cartRule['name'], 'Loyalty Discount') !== false) {
+                $totalDiscount += (float) $cartRule['value'];
+            }
+        }
+
+        return $totalDiscount;
     }
     public function hookDisplayShoppingCartFooter($params)
     {
