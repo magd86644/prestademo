@@ -1,15 +1,35 @@
-{if $pointsData|@count > 0}
-    <div class="brand-loyalty-points card p-3 my-3">
-        <h3 class="h5 mb-3">🎁 Your Loyalty Points by Brand </h3>
-        <ul class="list-group">
-            {foreach from=$pointsData item=entry}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <strong>{$entry.manufacturer_name}</strong>
-                    <span>{$entry.total_points } points</span>
-                </li>
-            {/foreach}
-        </ul>
-    </div>
-{else}
-    <p class="alert alert-info my-3">You don’t have any loyalty points yet.</p>
+{foreach from=$pointsData item=entry}
+{if $entry.can_apply || $entry.is_applied}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <span>
+                <strong>{$entry.manufacturer_name}</strong> -
+                <small class="text-muted me-2">{$entry.total_points} points</small>
+            </span>
+
+            {if $entry.is_applied}
+                <button class="btn btn-sm btn-secondary" disabled>
+                    Applied
+                </button>
+            {elseif $entry.can_apply}
+                <button 
+                    class="btn btn-sm btn-success apply-brand-loyalty" 
+                    data-brand-id="{$entry.id_manufacturer}">
+                    Apply
+                </button>
+            {/if}
+        </div>
+    </li>
+    {/if}
+{/foreach}
+
+{if $hasAppliedLoyalty}
+    <button id="remove-loyalty-points" class="btn btn-danger btn-sm mt-2">
+        Reset
+    </button>
 {/if}
+ <script>
+        var applyLoyaltyPointsUrl = '{$loyaltyPointsApplyUrl|escape:'javascript'}';
+        var removeLoyaltyPointsUrl = '{$loyaltyPointsRemoveUrl|escape:'javascript'}';
+    </script>
+<div id="loyalty-message-container" class="mt-3"></div>
