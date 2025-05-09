@@ -29,14 +29,13 @@ class BrandLoyaltyPointsRemoveLoyaltyPointsModuleFrontController extends ModuleF
 
                 // Remove it from the cart
                 if ($cart->removeCartRule($cartRule->id)) {
-                    // $cart->update();
+                    $cartRule->delete();
                     $removedAny = true;
                 }
             }
         }
-
+        $cart->update(); // ensures total is recalculated
         if ($removedAny) {
-            $cartRule->delete();
             $this->ajaxDie(json_encode([
                 'success' => true,
                 'message' => 'Loyalty points discount removed from your cart :)'

@@ -310,54 +310,81 @@ class BrandLoyaltyPoints extends Module
         return $totalDiscount;
     }
     public function hookDisplayShoppingCartFooter($params)
-    {
-        $customerId = (int) $this->context->customer->id;
-
-        if (!$customerId) {
-            return '';
-        }
-
-        // Query: get loyalty points grouped by brand
-        $pointsData = Db::getInstance()->executeS(
-            'SELECT m.name AS manufacturer_name, SUM(lp.points) AS total_points
-        FROM `' . _DB_PREFIX_ . 'loyalty_points` lp
-        LEFT JOIN `' . _DB_PREFIX_ . 'manufacturer` m ON m.id_manufacturer = lp.id_manufacturer
-        WHERE lp.id_customer = ' . $customerId . '
-        GROUP BY lp.id_manufacturer'
-        );
-
-        // Assign points to Smarty
-        $this->context->smarty->assign([
-            'loyaltyPointsApplyUrl' => $this->context->link->getModuleLink($this->name, 'applyloyaltypoints'),
-            'loyaltyPointsRemoveUrl' => $this->context->link->getModuleLink($this->name, 'removeloyaltypoints'),
-            'pointsData' => $pointsData,
-        ]);
-
-
-        $output = $this->display(
-            _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
-            'views/templates/front/loyalty_points_display.tpl'
-        );
-
-        $output .= $this->display(
-            _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
-            'views/templates/front/loyalty_points_apply_button.tpl'
-        );
-
-        return $output;
+{
+    $customerId = (int) $this->context->customer->id;
+    $cart = $this->context->cart;
+    if (!$customerId || !$cart->id) {
+        return '';
     }
 
-    public function hookDisplayShoppingCart($params)
-    {
-        $this->context->smarty->assign([
-            'my_custom_text' => 'Check my payment website'
-        ]);
+    // Query: get loyalty points grouped by brand
+    $rawPointsData = Db::getInstance()->executeS(
+        'SELECT m.id_manufacturer, m.name AS manufacturer_name, SUM(lp.points) AS total_points
+         FROM `' . _DB_PREFIX_ . 'loyalty_points` lp
+         LEFT JOIN `' . _DB_PREFIX_ . 'manufacturer` m ON m.id_manufacturer = lp.id_manufacturer
+         WHERE lp.id_customer = ' . $customerId . '
+         GROUP BY lp.id_manufacturer'
+    );
 
-        // return $this->display(__FILE__, 'views/templates/hook/cart_inside.tpl');
-        return $this->display(
-            _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
-            'views/templates/hook/cart_inside.tpl'
-        );
+    // Get brand totals in the current cart
+    $brandsInCart = [];
+    foreach ($cart->getProducts() as $product) {
+        $mid = (int) $product['id_manufacturer'];
+        if (!isset($brandsInCart[$mid])) {
+            $brandsInCart[$mid] = 0;
+        }
+        $brandsInCart[$mid] += $product['total_wt'];
+    }
+
+    // Detect which loyalty rules are already applied
+    $appliedManufacturerIds = [];
+    foreach ($cart->getCartRules() as $rule) {
+        if (strpos($rule['name'], 'Loyalty Discount - ') === 0) {
+            foreach ($rawPointsData as $entry) {
+                if (strpos($rule['name'], 'Loyalty Discount - ' . $entry['manufacturer_name']) === 0) {
+                    $appliedManufacturerIds[] = (int) $entry['id_manufacturer'];
+                }
+            }
+        }
+    }
+
+    // Enhance points data
+    foreach ($rawPointsData as &$entry) {
+        $mid = (int) $entry['id_manufacturer'];
+        $points = (int) $entry['total_points'];
+        $canApply = false;
+        $isApplied = in_array($mid, $appliedManufacturerIds);
+
+        if (isset($brandsInCart[$mid]) && $points > 0 && !$isApplied) {
+            $conversionRate = self::getConversionRateByManufacturer($mid);
+            $maxDiscount = $points * $conversionRate;
+            $brandTotal = $brandsInCart[$mid];
+
+            if ($conversionRate > 0 && $maxDiscount >= 0.01 && $brandTotal > 0) {
+                $canApply = true;
+            }
+        }
+
+        $entry['can_apply'] = $canApply;
+        $entry['is_applied'] = $isApplied;
+    }
+    unset($entry);
+
+    // Show "Reset" button if any loyalty rule applied
+    $hasAppliedLoyalty = !empty($appliedManufacturerIds);
+
+    // Assign to Smarty
+    $this->context->smarty->assign([
+        'loyaltyPointsApplyUrl' => $this->context->link->getModuleLink($this->name, 'applyloyaltypoints'),
+        'loyaltyPointsRemoveUrl' => $this->context->link->getModuleLink($this->name, 'removeloyaltypoints'),
+        'pointsData' => $rawPointsData,
+        'hasAppliedLoyalty' => $hasAppliedLoyalty,
+    ]);
+
+    return $this->display(
+        _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
+        'views/templates/front/loyalty_points_display.tpl'
+    );
     }
 
     /**
@@ -368,7 +395,7 @@ class BrandLoyaltyPoints extends Module
      */
     public static function getConversionRateByManufacturer($manufacturerId)
     {
-        PrestaShopLogger::addLog('Getting conversion rate for manufacturer ID: ' . $manufacturerId, 1, null, 'BrandLoyaltyPoints', 0, true);
+        // PrestaShopLogger::addLog('Getting conversion rate for manufacturer ID: ' . $manufacturerId, 1, null, 'BrandLoyaltyPoints', 0, true);
         $sql = 'SELECT points_conversion_rate FROM ' . _DB_PREFIX_ . 'brand_loyalty_config WHERE id_manufacturer = ' . (int) $manufacturerId;
         return (float) Db::getInstance()->getValue($sql);
     }

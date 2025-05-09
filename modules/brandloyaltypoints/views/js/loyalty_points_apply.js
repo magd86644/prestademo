@@ -1,4 +1,4 @@
-$(document).ready(function() {
+$(document).ready(function () {
     const $messageContainer = $('#loyalty-message-container');
 
     function showLoyaltyMessage(message, type = 'success') {
@@ -18,25 +18,31 @@ $(document).ready(function() {
             url: url,
             method: 'POST',
             dataType: 'json',
-            success: function(response) {
+            success: function (response) {
                 showLoyaltyMessage(response.message, response.success ? 'success' : 'warning');
+                console.log('Response:', response);
                 if (response.success) {
-                    setTimeout(function() {
+                    setTimeout(function () {
                         location.reload();
                     }, 1500);
                 }
             },
-            error: function() {
+            error: function () {
                 showLoyaltyMessage('An unexpected error occurred, please try again.', 'danger');
             }
         });
     }
 
-    $('#apply-loyalty-points').on('click', function() {
-        handleLoyaltyAction(applyLoyaltyPointsUrl);
+    $(document).on('click', '.apply-brand-loyalty', function () {
+        const brandId = $(this).data('brand-id');
+        if (!brandId) return;
+
+        const url = `${applyLoyaltyPointsUrl}?brand=${brandId}`;
+        $(this).text('Applying...').prop('disabled', true);
+        handleLoyaltyAction(url);
     });
 
-    $('#remove-loyalty-points').on('click', function() {
+    $('#remove-loyalty-points').on('click', function () {
         handleLoyaltyAction(removeLoyaltyPointsUrl);
     });
 });

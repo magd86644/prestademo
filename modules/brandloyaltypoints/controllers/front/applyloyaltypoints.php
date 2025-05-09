@@ -17,59 +17,67 @@ class BrandLoyaltyPointsApplyLoyaltyPointsModuleFrontController extends ModuleFr
         }
 
         $brandsInCart = $this->getBrandsInCart($cart);
-        $loyaltyData = $this->getCustomerLoyaltyPoints($customerId);
-        $appliedAny = false;
 
-        foreach ($loyaltyData as $entry) {
-            $manufacturerId = (int) $entry['id_manufacturer'];
-            $availablePoints = (int) $entry['points'];
-
-            if (isset($brandsInCart[$manufacturerId]) && $availablePoints > 0) {
-                if ($this->isLoyaltyRuleAlreadyApplied($cart, $manufacturerId)) {
-                    PrestaShopLogger::addLog("Loyalty points already applied for manufacturer $manufacturerId", 1, null, 'BrandLoyaltyPoints', 0, true);
-                    continue;
-                }
-
-                $brandTotal = $brandsInCart[$manufacturerId]['total_price'];
-                $conversionRate = BrandLoyaltyPoints::getConversionRateByManufacturer($manufacturerId);
-                if ($conversionRate <= 0) {
-                    PrestaShopLogger::addLog("Invalid conversion rate for manufacturer $manufacturerId", 3, null, 'BrandLoyaltyPoints', 0, true);
-                    continue;
-                }
-
-                $maxDiscount = $availablePoints * $conversionRate;
-                $discountToApply = min($maxDiscount, $brandTotal);
-
-                if ($discountToApply < 0.01) {
-                    PrestaShopLogger::addLog("Loyalty discount too small for manufacturer $manufacturerId", 1, null, 'BrandLoyaltyPoints', 0, true);
-                    continue;
-                }
-
-                $cartRule = $this->createBrandLoyaltyCartRule($customerId, $manufacturerId, $discountToApply);
-                if ($cartRule && Validate::isLoadedObject($cartRule)) {
-                    $this->attachManufacturerConditionToCartRule($cartRule->id, $manufacturerId);
-                    $cart->addCartRule($cartRule->id);
-                    $appliedAny = true;
-
-                    Db::getInstance()->execute(
-                        '
-                    UPDATE `' . _DB_PREFIX_ . 'loyalty_points` 
-                    SET id_cart_rule = ' . (int)$cartRule->id . ', last_updated = NOW()
-                    WHERE id_customer = ' . $customerId . ' 
-                    AND id_manufacturer = ' . $manufacturerId
-                    );
-
-                    PrestaShopLogger::addLog("Loyalty CartRule applied for manufacturer $manufacturerId", 1, null, 'BrandLoyaltyPoints', 0, true);
-                } else {
-                    PrestaShopLogger::addLog("Failed to create CartRule for manufacturer $manufacturerId", 3, null, 'BrandLoyaltyPoints', 0, true);
-                }
+        $manufacturerIdToApply = (int) Tools::getValue('brand');
+        $manufacturerId = $manufacturerIdToApply;
+        $availablePoints = (int) Db::getInstance()->getValue(
+            'SELECT points FROM `' . _DB_PREFIX_ . 'loyalty_points`
+            WHERE id_customer = ' . $customerId . ' AND id_manufacturer = ' . $manufacturerId
+        );
+        if ($availablePoints > 0 && isset($brandsInCart[$manufacturerId])) {
+            if ($this->isLoyaltyRuleAlreadyApplied($cart, $manufacturerId)) {
+                $this->ajaxDie(json_encode([
+                    'success' => false,
+                    'message' => 'Loyalty points already applied for this brand.'
+                ]));
             }
-        }
 
-        $this->ajaxDie(json_encode([
-            'success' => $appliedAny,
-            'message' => $appliedAny ? 'Loyalty discount applied.' : 'No applicable loyalty discount found.'
-        ]));
+            $brandTotal = $brandsInCart[$manufacturerId]['total_price'];
+            $conversionRate = BrandLoyaltyPoints::getConversionRateByManufacturer($manufacturerId);
+            if ($conversionRate <= 0) {
+                $this->ajaxDie(json_encode([
+                    'success' => false,
+                    'message' => 'Invalid conversion rate.'
+                ]));
+            }
+
+            $maxDiscount = $availablePoints * $conversionRate;
+            $discountToApply = min($maxDiscount, $brandTotal);
+
+            if ($discountToApply < 0.01) {
+                $this->ajaxDie(json_encode([
+                    'success' => false,
+                    'message' => 'Discount amount too small.'
+                ]));
+            }
+
+            $cartRule = $this->createBrandLoyaltyCartRule($customerId, $manufacturerId, $discountToApply);
+            if ($cartRule && Validate::isLoadedObject($cartRule)) {
+                $this->attachManufacturerConditionToCartRule($cartRule->id, $manufacturerId);
+                $cart->addCartRule($cartRule->id);
+
+                Db::getInstance()->execute(
+                    ' UPDATE `' . _DB_PREFIX_ . 'loyalty_points`
+                        SET id_cart_rule = ' . (int)$cartRule->id . ', last_updated = NOW()
+                        WHERE id_customer = ' . $customerId . ' AND id_manufacturer = ' . $manufacturerId
+                );
+
+                $this->ajaxDie(json_encode([
+                    'success' => true,
+                    'message' => 'Loyalty discount applied.'
+                ]));
+            } else {
+                $this->ajaxDie(json_encode([
+                    'success' => false,
+                    'message' => 'Failed to create discount rule.'
+                ]));
+            }
+        } else {
+            $this->ajaxDie(json_encode([
+                'success' => false,
+                'message' => 'No loyalty points available for this brand.'
+            ]));
+        }
     }
 
     /**
@@ -98,14 +106,6 @@ class BrandLoyaltyPointsApplyLoyaltyPointsModuleFrontController extends ModuleFr
         return $brandsInCart;
     }
 
-    private function getCustomerLoyaltyPoints($customerId)
-    {
-        return Db::getInstance()->executeS(
-            'SELECT id_manufacturer, points 
-         FROM `' . _DB_PREFIX_ . 'loyalty_points` 
-         WHERE id_customer = ' . (int) $customerId
-        );
-    }
 
     private function isLoyaltyRuleAlreadyApplied($cart, $manufacturerId)
     {
