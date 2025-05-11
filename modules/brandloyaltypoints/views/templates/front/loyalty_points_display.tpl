@@ -7,11 +7,9 @@
                 <small class="text-muted me-2">{$entry.total_points} points</small>
             </span>
 
-            {if $entry.is_applied}
-                <button class="btn btn-sm btn-secondary" disabled>
-                    Applied
-                </button>
-            {elseif $entry.can_apply}
+           
+                
+            {if $entry.can_apply}
                 <button 
                     class="btn btn-sm btn-success apply-brand-loyalty" 
                     data-brand-id="{$entry.id_manufacturer}">
