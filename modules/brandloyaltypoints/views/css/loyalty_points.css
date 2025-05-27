@@ -55,3 +55,24 @@
     padding: 10px;
     margin-top: 15px;
 }
+
+#loyalty-summary-container {
+    margin-top: 5px;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.loyalty-point-record {
+    display: block;
+    min-width: 220px;
+    align-items: center;
+    margin-bottom: 6px;
+    border: 1px solid #dee2e6;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.apply-brand-loyalty {
+    float: right;
+}

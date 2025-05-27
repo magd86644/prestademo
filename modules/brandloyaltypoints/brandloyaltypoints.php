@@ -69,7 +69,7 @@ class BrandLoyaltyPoints extends Module
         // Register hooks
         if (
             !$this->registerHook('actionValidateOrder') ||
-            !$this->registerHook('displayShoppingCartFooter') ||
+            !$this->registerHook('displayCheckoutSubtotalDetails') ||
             !$this->registerHook('actionFrontControllerSetMedia') ||
             !$this->registerHook('displayShoppingCart') ||
             !$this->registerHook('actionCartSave')
@@ -305,7 +305,7 @@ class BrandLoyaltyPoints extends Module
 
         return $totalDiscount;
     }
-    public function hookDisplayShoppingCartFooter($params)
+    private function renderLoyaltyPointsBlock($params)
     {
         $customerId = (int) $this->context->customer->id;
         $cart = $this->context->cart;
@@ -381,6 +381,11 @@ class BrandLoyaltyPoints extends Module
             _PS_MODULE_DIR_ . $this->name . '/' . $this->name . '.php',
             'views/templates/front/loyalty_points_display.tpl'
         );
+    }
+
+    public function hookDisplayCheckoutSubtotalDetails($params)
+    {
+        return $this->renderLoyaltyPointsBlock($params);
     }
 
     public function hookActionCartSave($params)

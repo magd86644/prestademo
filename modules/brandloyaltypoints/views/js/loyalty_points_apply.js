@@ -20,10 +20,9 @@ $(document).ready(function () {
             dataType: 'json',
             success: function (response) {
                 showLoyaltyMessage(response.message, response.success ? 'success' : 'warning');
-                console.log('Response:', response);
                 if (response.success) {
                     setTimeout(function () {
-                        location.reload();
+                        reloadLoyaltyBlock();
                     }, 1500);
                 }
             },
@@ -41,8 +40,17 @@ $(document).ready(function () {
         $(this).text('Applying...').prop('disabled', true);
         handleLoyaltyAction(url);
     });
-
-    $('#remove-loyalty-points').on('click', function () {
+    $(document).on('click', '#remove-loyalty-points', function () {
+        $(this).text('Removing...').prop('disabled', true);
         handleLoyaltyAction(removeLoyaltyPointsUrl);
     });
+
+    function reloadLoyaltyBlock() {
+        window.prestashop.emit('updateCart', {
+            reason: {
+                linkAction: 'loyaltyApplied' 
+            },
+            resp: {} 
+        });
+    }
 });
