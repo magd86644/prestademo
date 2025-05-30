@@ -199,5 +199,34 @@ class LoyaltyPointsHelper
                 }
             }
         }
+        self::removeObsoleteLoyaltyRulesFromCart($cart, $brandsInCart);
+    }
+
+    public static function removeObsoleteLoyaltyRulesFromCart(Cart $cart, array $brandsInCart)
+    {
+        $cartRules = $cart->getCartRules();
+
+        foreach ($cartRules as $rule) {
+            $ruleName = $rule['name'];
+            $cartRuleId = (int)$rule['id_cart_rule'];
+            $matchesActiveBrand = false;
+            // Check if this rule matches any current brand in the cart
+            foreach ($brandsInCart as $manufacturerId => $_) {
+                if ($ruleName === self::getLoyaltyCartRuleName($manufacturerId)) {
+                    $matchesActiveBrand = true;
+                    break;
+                }
+            }
+
+            if (!$matchesActiveBrand) {
+                $cart->removeCartRule($cartRuleId);
+                $cartRule = new CartRule($cartRuleId);  
+                if ($cart->removeCartRule($rule->id)) {
+                    // Delete the rule from the database
+                    $cartRule->delete();
+                    
+                }
+            }
+        }
     }
 }

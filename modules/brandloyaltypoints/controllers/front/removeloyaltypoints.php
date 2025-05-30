@@ -24,7 +24,7 @@ class BrandLoyaltyPointsRemoveLoyaltyPointsModuleFrontController extends ModuleF
         foreach ($cartRules as $rule) {
             $cartRule = new CartRule((int)$rule['id_cart_rule']);
             
-            // Check if the cart rule was created by your module
+            // Check if the cart rule was created by our loyalty points module
             if (strpos($cartRule->description, 'Loyalty points discount') !== false) {
 
                 // Remove it from the cart
