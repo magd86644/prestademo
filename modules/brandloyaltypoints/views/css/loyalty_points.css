@@ -1,6 +1,5 @@
 /* loyalty_points.css */
 
-/* General Card Styling */
 .brand-loyalty-points {
     background-color: #f8f9fa;
     border-radius: 8px;
@@ -17,7 +16,6 @@
     margin-bottom: 15px;
 }
 
-/* List Group Styling */
 .list-group-item {
     border: 1px solid #e3e6f0;
     background-color: #ffffff;
@@ -25,20 +23,17 @@
     margin-bottom: 10px;
 }
 
-/* Flex Layout for each list item */
 .list-group-item .d-flex {
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-/* Make the text bold for the brand name */
 .list-group-item strong {
     font-weight: bold;
     color: #343a40;
 }
 
-/* Points Styling */
 .list-group-item span {
     font-weight: 600;
     color: #28a745;
@@ -46,7 +41,6 @@
     float: right;
 }
 
-/* Info Message when no points available */
 .alert-info {
     background-color: #d1ecf1;
     color: #0c5460;
@@ -57,8 +51,6 @@
 }
 
 #loyalty-summary-container {
-    margin-top: 5px;
-    padding: 15px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -69,10 +61,14 @@
     align-items: center;
     margin-bottom: 6px;
     border: 1px solid #dee2e6;
-    padding: 8px;
+    padding: 16px 8px;
     border-radius: 4px;
+    margin-top: 10px;
 }
 
 .apply-brand-loyalty {
     float: right;
+    height: 22px;
+    padding-top: 0px;
+    padding-bottom: 0px;
 }

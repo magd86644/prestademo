@@ -24,7 +24,6 @@ class BrandLoyaltyPoints extends Module
         $this->ps_versions_compliancy = ['min' => '1.7.0.0', 'max' => _PS_VERSION_];
         require_once _PS_MODULE_DIR_ . 'brandloyaltypoints/helpers/LoyaltyPointsHelper.php';
     }
-    // TODO when removing the cart rule, remove the record rule id  from the loyalty points table
     // TODO add a cron job to remove old records from the loyalty points table (older than 1 year)
     public function install()
     {
@@ -80,7 +79,7 @@ class BrandLoyaltyPoints extends Module
         // Create admin tab
         $tab = new Tab();
         $tab->active = 1;
-        $tab->class_name = 'AdminBrandLoyaltyPoints'; // Unique name for your tab
+        $tab->class_name = 'AdminBrandLoyaltyPoints'; // Unique name for the tab
         $tab->module = $this->name;
         $tab->id_parent = (int) Tab::getIdFromClassName('AdminCatalog');
 
@@ -257,10 +256,6 @@ class BrandLoyaltyPoints extends Module
         $totalOrderProductPrice = array_sum(array_column($products, 'total_price_tax_incl'));
         // Sum the total loyalty points discount used in the order
         $totalLoyaltyDiscount = $this->calculateTotalLoyaltyDiscount($usedCartRules);
-        PrestaShopLogger::addLog(
-            "Loyalty program: Total Loyalty Discount: $totalLoyaltyDiscount, Total Order Product Price: $totalOrderProductPrice",
-            1
-        );
         // Avoid division by zero
         if ($totalOrderProductPrice <= 0) {
             return;
@@ -385,6 +380,9 @@ class BrandLoyaltyPoints extends Module
 
     public function hookDisplayCheckoutSubtotalDetails($params)
     {
+        if($this->context->controller->php_self != 'cart') {
+            return '';
+        }
         return $this->renderLoyaltyPointsBlock($params);
     }
 

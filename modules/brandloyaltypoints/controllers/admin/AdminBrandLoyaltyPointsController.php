@@ -9,6 +9,8 @@ class AdminBrandLoyaltyPointsController extends ModuleAdminController
         $this->className = 'LoyaltyPoints';
         $this->lang = false;
         $this->bootstrap = true;
+        $this->addRowAction('edit');
+        $this->addRowAction('delete');
         parent::__construct();
     }
 
@@ -28,7 +30,7 @@ class AdminBrandLoyaltyPointsController extends ModuleAdminController
             ],
             'manufacturer_name' => [
                 'title' => $this->l('Brand Name'),
-                'filter_key' => 'm!name', 
+                'filter_key' => 'm!name',
 
             ],
             'points' => [
@@ -61,7 +63,6 @@ class AdminBrandLoyaltyPointsController extends ModuleAdminController
     ';
 
         $this->processFilter();
-        $this->addRowAction('delete');
         return parent::renderList();
     }
 
@@ -72,23 +73,37 @@ class AdminBrandLoyaltyPointsController extends ModuleAdminController
 
     public function renderForm()
     {
+        $isAdd = !(bool)Tools::getValue('id_loyalty_points');
+
         $this->fields_form = [
             'legend' => [
-                'title' => $this->l('Edit Loyalty Points'),
+                'title' => $this->l($isAdd ? 'Add Loyalty Points' : 'Edit Loyalty Points'),
                 'icon' => 'icon-star',
             ],
             'input' => [
                 [
-                    'type' => 'text',
-                    'label' => $this->l('Customer ID'),
+                    'type' => 'select',
+                    'label' => $this->l('Customer'),
                     'name' => 'id_customer',
-                    'readonly' => true,
+                    'required' => true,
+                    'options' => [
+                        'query' => $this->getCustomers(),
+                        'id' => 'id_customer',
+                        'name' => 'name',
+                    ],
+                    'readonly' => !$isAdd, // only editable on add
                 ],
                 [
-                    'type' => 'text',
-                    'label' => $this->l('Manufacturer ID'),
+                    'type' => 'select',
+                    'label' => $this->l('Manufacturer'),
                     'name' => 'id_manufacturer',
-                    'readonly' => true,
+                    'required' => true,
+                    'options' => [
+                        'query' => $this->getManufacturers(),
+                        'id' => 'id_manufacturer',
+                        'name' => 'name',
+                    ],
+                    'readonly' => !$isAdd, // only editable on add
                 ],
                 [
                     'type' => 'text',
@@ -103,6 +118,17 @@ class AdminBrandLoyaltyPointsController extends ModuleAdminController
         ];
 
         return parent::renderForm();
+    }
+    protected function getCustomers()
+    {
+        $sql = 'SELECT id_customer, CONCAT(firstname, " ", lastname) as name FROM ' . _DB_PREFIX_ . 'customer ORDER BY firstname ASC';
+        return Db::getInstance()->executeS($sql);
+    }
+
+    protected function getManufacturers()
+    {
+        $sql = 'SELECT id_manufacturer, name FROM ' . _DB_PREFIX_ . 'manufacturer ORDER BY name ASC';
+        return Db::getInstance()->executeS($sql);
     }
     // Override processUpdate to prevent modification of customer or manufacturer ID
     public function processUpdate()
@@ -126,11 +152,15 @@ class AdminBrandLoyaltyPointsController extends ModuleAdminController
 
         return '<a href="' . $link . '">' . htmlspecialchars($customer_name) . '</a>';
     }
-    // public function renderManufacturerLink($manufacturer_name, $row)
-    // {
-    //     $id_manufacturer = $row['id_manufacturer'];
-    //     $link = $this->context->link->getAdminLink('AdminManufacturers', true, [], ['id_manufacturer' => $id_manufacturer, 'updatemanufacturer' => 1]);
-
-    //     return '<a href="' . $link . '">' . htmlspecialchars($manufacturer_name) . '</a>';
-    // }
+    public function initToolbar()
+    {
+        parent::initToolbar();
+        $reportLink = $this->context->link->getAdminLink('AdminLoyaltyReport');
+        $this->toolbar_btn['report'] = [
+            'href' => $reportLink,
+            'target' => '_blank',
+            'desc' => $this->l('Monthly Report'),
+            'class' => 'icon-area-chart',
+        ];
+    }
 }
