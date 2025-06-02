@@ -4,7 +4,7 @@
             {if $entry.can_apply || $entry.is_applied}
                 <div class="loyalty-point-record">
                     <strong>{$entry.manufacturer_name}</strong>
-                    <small>{$entry.total_points} pts</small>
+                    <small>{$entry.total_points} miles</small>
                     {if $entry.can_apply}
                         <button 
                             class="btn btn-sm btn-success apply-brand-loyalty" 
