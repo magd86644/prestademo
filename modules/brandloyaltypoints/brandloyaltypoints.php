@@ -12,7 +12,7 @@ class BrandLoyaltyPoints extends Module
     {
         $this->name = 'brandloyaltypoints';
         $this->tab = 'administration';
-        $this->version = '1.0.0';
+        $this->version = '1.0.2';
         $this->author = 'Majd CHEIKH HANNA';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -71,7 +71,8 @@ class BrandLoyaltyPoints extends Module
             !$this->registerHook('displayCheckoutSubtotalDetails') ||
             !$this->registerHook('actionFrontControllerSetMedia') ||
             !$this->registerHook('displayShoppingCart') ||
-            !$this->registerHook('actionCartSave')
+            !$this->registerHook('actionCartSave') ||
+            !$this->registerHook('displayCustomerAccount')
         ) {
             return false;
         }
@@ -380,7 +381,7 @@ class BrandLoyaltyPoints extends Module
 
     public function hookDisplayCheckoutSubtotalDetails($params)
     {
-        if($this->context->controller->php_self != 'cart') {
+        if ($this->context->controller->php_self != 'cart') {
             return '';
         }
         return $this->renderLoyaltyPointsBlock($params);
@@ -390,5 +391,18 @@ class BrandLoyaltyPoints extends Module
     {
         $cart = $params['cart'];
         LoyaltyPointsHelper::syncLoyaltyDiscountsWithCart($cart);
+    }
+
+    // Here we render the loyalty points block in the customer account page
+    public function hookDisplayCustomerAccount($params)
+    {
+        $context = Context::getContext();
+        $id_customer = $context->customer->id;
+        $this->context->smarty->assign([
+             'loyalty_url' => $this->context->link->getModuleLink($this->name, 'accountloyaltypoints'),
+             'id_customer' => $id_customer,
+        ]);
+
+        return $this->display(__FILE__, 'views/templates/front/customerAccount.tpl');
     }
 }
