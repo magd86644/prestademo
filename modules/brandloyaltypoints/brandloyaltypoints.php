@@ -267,14 +267,23 @@ class BrandLoyaltyPoints extends Module
             if ($brandId <= 0 || $productTotal <= 0) {
                 continue;
             }
-            // Calculate the proportional paid amount after loyalty discount
+            $conversionRate = LoyaltyPointsHelper::getConversionRateByManufacturer($brandId);
+            if ($conversionRate <= 0) {
+                continue;
+            }
+            // Calculate proportional discount
             $productDiscountShare = ($productTotal / $totalOrderProductPrice) * $totalLoyaltyDiscount;
             $paidAmount = $productTotal - $productDiscountShare;
             if ($paidAmount <= 0) {
                 continue;
             }
 
-            $earnedPoints = (int) $paidAmount; // 1€ = 1 point todo make it configurable
+            // Calculate points based on the brand's conversion rate
+            $earnedPoints = (int) floor($paidAmount / $conversionRate);
+
+            if ($earnedPoints <= 0) {
+                continue; // no points to grant
+            }
 
             Db::getInstance()->execute('
             INSERT INTO `' . _DB_PREFIX_ . 'loyalty_points`
@@ -399,8 +408,8 @@ class BrandLoyaltyPoints extends Module
         $context = Context::getContext();
         $id_customer = $context->customer->id;
         $this->context->smarty->assign([
-             'loyalty_url' => $this->context->link->getModuleLink($this->name, 'accountloyaltypoints'),
-             'id_customer' => $id_customer,
+            'loyalty_url' => $this->context->link->getModuleLink($this->name, 'accountloyaltypoints'),
+            'id_customer' => $id_customer,
         ]);
 
         return $this->display(__FILE__, 'views/templates/front/customerAccount.tpl');

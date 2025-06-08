@@ -11,7 +11,9 @@ class BrandLoyaltyPointsAccountLoyaltyPointsModuleFrontController extends Module
             SELECT m.name AS brand_name, lp.points
             FROM '._DB_PREFIX_.'loyalty_points lp
             INNER JOIN '._DB_PREFIX_.'manufacturer m ON m.id_manufacturer = lp.id_manufacturer
-            WHERE lp.id_customer = '.$customerId
+            INNER JOIN '._DB_PREFIX_.'brand_loyalty_config blc ON blc.id_manufacturer = lp.id_manufacturer
+            WHERE lp.id_customer = '.$customerId.'
+            AND blc.points_conversion_rate > 0'
         );
 
         $this->context->smarty->assign([

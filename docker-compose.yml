@@ -9,10 +9,11 @@ services:
       - DB_NAME=prestashop              
       - DB_USER=root                     
       - DB_PASSWORD=                      
-      - PS_DEV_MODE=0                    # Enable development mode (optional)
+      - PS_DEV_MODE=1                   # Enable development mode (optional)
     volumes:
       - prestashop_data:/var/www/html
       - ./modules/brandloyaltypoints:/var/www/html/modules/brandloyaltypoints
+      - ./prestashop_data/config/defines.inc.php:/var/www/html/config/defines.inc.php
     restart: unless-stopped
 volumes:
   prestashop_data:

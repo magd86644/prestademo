@@ -221,11 +221,16 @@ class LoyaltyPointsHelper
 
             if (!$matchesActiveBrand) {
                 $cart->removeCartRule($cartRuleId);
-                $cartRule = new CartRule($cartRuleId);  
-                if ($cart->removeCartRule($rule->id)) {
+                $cartRule = new CartRule($cartRuleId);
+                $ruleId = null;
+                if (is_object($rule) && isset($rule->id)) {
+                    $ruleId = $rule->id;
+                } elseif (is_array($rule) && isset($rule['id_cart_rule'])) {
+                    $ruleId = $rule['id_cart_rule'];
+                }
+                if ($ruleId !== null && $cart->removeCartRule($ruleId)) {
                     // Delete the rule from the database
                     $cartRule->delete();
-                    
                 }
             }
         }
