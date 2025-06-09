@@ -2,7 +2,7 @@
 <module>
     <name>brandloyaltypoints</name>
     <displayName><![CDATA[Brand Loyalty Points]]></displayName>
-    <version><![CDATA[1.0.2]]></version>
+    <version><![CDATA[1.0.3]]></version>
     <description><![CDATA[Apply loyalty points for different brands in the cart.]]></description>
     <author><![CDATA[Majd CHEIKH HANNA]]></author>
     <tab><![CDATA[administration]]></tab>

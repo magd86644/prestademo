@@ -31,7 +31,7 @@ class BrandLoyaltyPointsApplyLoyaltyPointsModuleFrontController extends ModuleFr
                 ]));
             }
 
-            $brandTotal = $brandsInCart[$manufacturerId]['total_price'];
+            $brandTotal = $brandsInCart[$manufacturerId]['total_price_tax_incl'];
             $conversionRate = LoyaltyPointsHelper::getConversionRateByManufacturer($manufacturerId);
             if ($conversionRate <= 0) {
                 $this->ajaxDie(json_encode([

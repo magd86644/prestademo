@@ -17,14 +17,15 @@ class LoyaltyPointsHelper
             $manufacturerId = $product['id_manufacturer'];
             if (!isset($brandsInCart[$manufacturerId])) {
                 $brandsInCart[$manufacturerId] = [
-                    'total_price' => 0,
+                    'total_price_tax_incl' => 0,
                 ];
             }
-            $brandsInCart[$manufacturerId]['total_price'] += $product['total'];
+            $brandsInCart[$manufacturerId]['total_price_tax_incl'] += $product['total_wt']; // includes tax
         }
 
         return $brandsInCart;
     }
+
 
 
 
@@ -146,7 +147,7 @@ class LoyaltyPointsHelper
         $brandsInCart = self::getBrandsInCart($cart);
 
         foreach ($brandsInCart as $manufacturerId => $brandData) {
-            $brandTotal = $brandData['total_price'];
+            $brandTotal = $brandData['total_price_tax_incl'];
 
             // Fetch loyalty points and applied cart rule (if any)
             $row = Db::getInstance()->getRow(

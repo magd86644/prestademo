@@ -12,7 +12,7 @@ class BrandLoyaltyPoints extends Module
     {
         $this->name = 'brandloyaltypoints';
         $this->tab = 'administration';
-        $this->version = '1.0.2';
+        $this->version = '1.0.3';
         $this->author = 'Majd CHEIKH HANNA';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -72,7 +72,8 @@ class BrandLoyaltyPoints extends Module
             !$this->registerHook('actionFrontControllerSetMedia') ||
             !$this->registerHook('displayShoppingCart') ||
             !$this->registerHook('actionCartSave') ||
-            !$this->registerHook('displayCustomerAccount')
+            !$this->registerHook('displayCustomerAccount') ||
+            !$this->registerHook('actionOrderStatusPostUpdate')
         ) {
             return false;
         }
@@ -198,7 +199,6 @@ class BrandLoyaltyPoints extends Module
 
         $usedCartRules = $order->getCartRules();
         $this->handleUsedPointsDeduction($usedCartRules, $customerId);
-        $this->grantLoyaltyPointsBasedOnPaidAmount($order, $usedCartRules, $customerId);
     }
 
     /**
@@ -279,7 +279,7 @@ class BrandLoyaltyPoints extends Module
             }
 
             // Calculate points based on the brand's conversion rate
-            $earnedPoints = (int) floor($paidAmount / $conversionRate);
+            $earnedPoints = (int) floor($paidAmount * $conversionRate);
 
             if ($earnedPoints <= 0) {
                 continue; // no points to grant
@@ -413,5 +413,23 @@ class BrandLoyaltyPoints extends Module
         ]);
 
         return $this->display(__FILE__, 'views/templates/front/customerAccount.tpl');
+    }
+
+    public function hookActionOrderStatusPostUpdate($params)
+    {
+        if (!isset($params['id_order']) || !$params['newOrderStatus']) {
+            return;
+        }
+
+        $order = new Order((int) $params['id_order']);
+        $newStatus = $params['newOrderStatus'];
+
+        // Check if the new status is "Delivered"
+        if ((int) $newStatus->id === (int) Configuration::get('PS_OS_DELIVERED')) {
+            $customerId = (int) $order->id_customer;
+            $usedCartRules = $order->getCartRules();
+
+            $this->grantLoyaltyPointsBasedOnPaidAmount($order, $usedCartRules, $customerId);
+        }
     }
 }
