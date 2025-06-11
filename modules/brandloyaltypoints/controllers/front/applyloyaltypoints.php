@@ -32,6 +32,7 @@ class BrandLoyaltyPointsApplyLoyaltyPointsModuleFrontController extends ModuleFr
             }
 
             $brandTotal = $brandsInCart[$manufacturerId]['total_price_tax_incl'];
+            $spendConversionRate = 1; // always when spending 1 mile = 1 currency unit
             $conversionRate = LoyaltyPointsHelper::getConversionRateByManufacturer($manufacturerId);
             if ($conversionRate <= 0) {
                 $this->ajaxDie(json_encode([
@@ -40,7 +41,7 @@ class BrandLoyaltyPointsApplyLoyaltyPointsModuleFrontController extends ModuleFr
                 ]));
             }
 
-            $maxDiscount = $availablePoints * $conversionRate;
+            $maxDiscount = $availablePoints * $spendConversionRate;
             $discountToApply = min($maxDiscount, $brandTotal);
 
             if ($discountToApply < 0.01) {

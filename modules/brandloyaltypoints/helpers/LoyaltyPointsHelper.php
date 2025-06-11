@@ -45,7 +45,7 @@ class LoyaltyPointsHelper
     {
         $cartRule = new CartRule();
         $cartRule->description = 'Loyalty points discount for brand #' . $manufacturerId;
-        $cartRule->code = 'LOYALTY_BRAND_' . $manufacturerId;
+        $cartRule->code = 'LOYALTY_BRAND_' . $manufacturerId . '_' . $customerId;
         $cartRule->id_customer = $customerId;
         $cartRule->date_from = date('Y-m-d H:i:s');
         $cartRule->date_to = date('Y-m-d H:i:s', strtotime('+1 day'));

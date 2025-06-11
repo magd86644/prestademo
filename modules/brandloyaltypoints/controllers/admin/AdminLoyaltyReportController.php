@@ -136,8 +136,9 @@ class AdminLoyaltyReportController extends ModuleAdminController
         FROM ' . _DB_PREFIX_ . 'orders o
         INNER JOIN ' . _DB_PREFIX_ . 'order_cart_rule ocr ON o.id_order = ocr.id_order
         INNER JOIN ' . _DB_PREFIX_ . 'cart_rule cr ON cr.id_cart_rule = ocr.id_cart_rule
-        INNER JOIN ' . _DB_PREFIX_ . 'manufacturer m ON m.id_manufacturer = CAST(REPLACE(cr.code, "LOYALTY_BRAND_", "") AS UNSIGNED)
-        WHERE cr.code LIKE "LOYALTY_BRAND_%" 
+        INNER JOIN ' . _DB_PREFIX_ . 'manufacturer m 
+            ON m.id_manufacturer = CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(cr.code, "_", -2), "_", 1) AS UNSIGNED)
+        WHERE cr.code LIKE "LOYALTY_BRAND\_%" 
         AND o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"';
 
         if (!empty($brandId)) {
