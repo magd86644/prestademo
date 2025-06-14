@@ -220,15 +220,7 @@ class BrandLoyaltyPoints extends Module
 
             if ($pointsData) {
                 $discountAmount = (float) $cartRule['value'];
-                $conversionRate = LoyaltyPointsHelper::getConversionRateByManufacturer($pointsData['id_manufacturer']);
-                if ($conversionRate <= 0) {
-                    PrestaShopLogger::addLog(
-                        "Invalid conversion rate for manufacturer ID: {$pointsData['id_manufacturer']}",
-                        3
-                    );
-                    continue; // skip this cart rule
-                }
-                $pointsUsed = floor($discountAmount / $conversionRate);
+                $pointsUsed = floor($discountAmount);
                 if ($pointsUsed > $pointsData['points']) {
                     PrestaShopLogger::addLog(
                         "Loyalty program: Not enough points for deduction. Customer ID: $customerId, Manufacturer: {$pointsData['id_manufacturer']}",
@@ -397,9 +389,20 @@ class BrandLoyaltyPoints extends Module
     }
 
     public function hookActionCartSave($params)
-    {
-        $cart = $params['cart'];
-        LoyaltyPointsHelper::syncLoyaltyDiscountsWithCart($cart);
+    {   
+        if ((int) $this->context->cookie->id_cart) {
+
+            if (!isset($cart)) {
+                $cart = new Cart($this->context->cookie->id_cart);
+            }
+
+            if (Validate::isLoadedObject($cart) && $cart->orderExists()) {
+                PrestaShopLogger::addLog('BeeCreative: - Cart cannot be loaded or an order has already been placed using this cart', 1, null, 'Cart', (int) $this->context->cookie->id_cart, true);
+            } else {
+                // Sync loyalty discounts with the cart
+                LoyaltyPointsHelper::syncLoyaltyDiscountsWithCart($cart);
+            }
+        }
     }
 
     // Here we render the loyalty points block in the customer account page

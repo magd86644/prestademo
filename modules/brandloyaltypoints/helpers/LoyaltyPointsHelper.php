@@ -137,8 +137,27 @@ class LoyaltyPointsHelper
         return (float) Db::getInstance()->getValue($sql);
     }
 
+    public static function canSyncLoyaltyDiscounts()
+    {
+        $context = Context::getContext();
+
+        if (empty($context->cookie->id_cart)) {
+            return false;
+        }
+
+        $cartId = (int)$context->cookie->id_cart;
+        $cart = new Cart($cartId);
+        if (Validate::isLoadedObject($cart) && $cart->orderExists()) {
+            // Cart is locked due to an order, do NOT sync
+            return false;
+        }
+        return true;
+    }
     public static function syncLoyaltyDiscountsWithCart(Cart $cart)
     {
+        if (!self::canSyncLoyaltyDiscounts()) {
+            return;
+        }
         $customerId = (int)$cart->id_customer;
         if (!$customerId) {
             return;
@@ -169,12 +188,7 @@ class LoyaltyPointsHelper
                 continue;
             }
 
-            $conversionRate = self::getConversionRateByManufacturer($manufacturerId);
-            if ($conversionRate <= 0) {
-                continue;
-            }
-
-            $expectedDiscount = min($points * $conversionRate, $brandTotal);
+            $expectedDiscount = min($points, $brandTotal);
             $expectedDiscount = round($expectedDiscount, 2); // Always round monetary values
 
             $cartRules = $cart->getCartRules();
