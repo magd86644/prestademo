@@ -12,7 +12,7 @@ class BrandLoyaltyPoints extends Module
     {
         $this->name = 'brandloyaltypoints';
         $this->tab = 'administration';
-        $this->version = '1.0.3';
+        $this->version = '1.0.5';
         $this->author = 'Majd CHEIKH HANNA';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -62,6 +62,21 @@ class BrandLoyaltyPoints extends Module
         if (!Db::getInstance()->execute($sqlBrandLoyaltyConfig)) {
             $error = Db::getInstance()->getMsgError();
             PrestaShopLogger::addLog('Error creating brand_loyalty_config table: ' . $error, 3);
+            return false;
+        }
+        // Create loyalty_points_history table, This table will track points granted per order
+        $sqlLoyaltyHistory = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'loyalty_points_history` (
+            `id_loyalty_points_history` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `id_order` INT UNSIGNED NOT NULL,
+            `id_customer` INT UNSIGNED NOT NULL,
+            `points_granted` INT NOT NULL DEFAULT 0,
+            `date_added` DATETIME NOT NULL,
+            UNIQUE KEY `order_unique` (`id_order`)
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8;';
+
+        if (!Db::getInstance()->execute($sqlLoyaltyHistory)) {
+            $error = Db::getInstance()->getMsgError();
+            PrestaShopLogger::addLog('Error creating loyalty_points_history table: ' . $error, 3);
             return false;
         }
 
@@ -284,7 +299,15 @@ class BrandLoyaltyPoints extends Module
             ON DUPLICATE KEY UPDATE 
                 points = points + ' . (int) $earnedPoints . ',
                 last_updated = NOW()
-        ');
+              ');
+
+
+            Db::getInstance()->insert('loyalty_points_history', [
+                'id_order' => (int) $order->id,
+                'id_customer' => (int) $customerId,
+                'points_granted' => (int) $earnedPoints,
+                'date_added' => date('Y-m-d H:i:s')
+            ]);
         }
     }
 
@@ -389,7 +412,7 @@ class BrandLoyaltyPoints extends Module
     }
 
     public function hookActionCartSave($params)
-    {   
+    {
         if ((int) $this->context->cookie->id_cart) {
 
             if (!isset($cart)) {
@@ -423,12 +446,20 @@ class BrandLoyaltyPoints extends Module
         if (!isset($params['id_order']) || !$params['newOrderStatus']) {
             return;
         }
-
-        $order = new Order((int) $params['id_order']);
         $newStatus = $params['newOrderStatus'];
-
+        $orderId = (int) $params['id_order'];
         // Check if the new status is "Delivered"
         if ((int) $newStatus->id === (int) Configuration::get('PS_OS_DELIVERED')) {
+            $alreadyGranted = Db::getInstance()->getValue(
+                '
+            SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'loyalty_points_history`
+            WHERE id_order = ' . $orderId
+            );
+            
+            if ($alreadyGranted) {
+                return; // Points already granted for this order
+            }
+            $order = new Order($orderId);
             $customerId = (int) $order->id_customer;
             $usedCartRules = $order->getCartRules();
 
