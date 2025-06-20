@@ -1,0 +1,15 @@
+#loyalty-points-client-summary {
+    background-color: #f1f3f5;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-top: 60px;
+    margin-bottom: 40px;
+
+    .card-header {
+        background-color: white;
+
+        h3 {
+            color: #385c02;
+        }
+    }
+}

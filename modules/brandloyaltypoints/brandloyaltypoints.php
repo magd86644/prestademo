@@ -207,6 +207,20 @@ class BrandLoyaltyPoints extends Module
                 ['position' => 'bottom', 'priority' => 150]
             );
         }
+        // For the customer loyalty points page: module-brandloyaltypoints-accountloyaltypoints
+
+        $routeName = Tools::getValue('controller');
+
+        if ($routeName === 'accountloyaltypoints') {
+            $this->context->controller->registerStylesheet(
+                'brandloyaltypoints-account-css',
+                'modules/' . $this->name . '/views/css/account_loyalty.css',
+                [
+                    'media' => 'all',
+                    'priority' => 150,
+                ]
+            );
+        }
     }
 
     public function hookActionValidateOrder($params)
