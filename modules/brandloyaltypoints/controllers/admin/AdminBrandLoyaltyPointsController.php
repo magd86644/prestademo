@@ -41,6 +41,13 @@ class AdminBrandLoyaltyPointsController extends ModuleAdminController
                 'search' => true,
                 'callback' => 'formatPoints',
             ],
+            'expiration_date' => [
+                'title' => $this->l('Expiration Date'),
+                'type' => 'date',
+                'align' => 'center',
+                'filter_key' => 'a!expiration_date',
+                'search' => false,
+            ],
             'last_updated' => [
                 'title' => $this->l('Last Updated'),
                 'type' => 'datetime',
@@ -55,6 +62,8 @@ class AdminBrandLoyaltyPointsController extends ModuleAdminController
         c.firstname as customer_firstname, 
         c.lastname as customer_lastname, 
         m.name as manufacturer_name,
+        a.expiration_date,
+        a.last_updated,
         CONCAT(c.firstname, " ", c.lastname) as customer_name';
 
         $this->_join = '
@@ -110,6 +119,13 @@ class AdminBrandLoyaltyPointsController extends ModuleAdminController
                     'label' => $this->l('Points'),
                     'name' => 'points',
                     'required' => true,
+                ],
+                [
+                    'type' => 'date',
+                    'label' => $this->l('Expiration Date'),
+                    'name' => 'expiration_date',
+                    'required' => true,
+                    'desc' => $this->l('The date when these points will expire.'),
                 ],
             ],
             'submit' => [

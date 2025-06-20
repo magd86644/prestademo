@@ -19,6 +19,7 @@ class LoyaltyPoints extends \ObjectModel
             'id_customer' => ['type' => self::TYPE_INT, 'validate' => 'isUnsignedId', 'required' => true],
             'id_manufacturer' => ['type' => self::TYPE_INT, 'validate' => 'isUnsignedId', 'required' => true],
             'points' => ['type' => self::TYPE_INT, 'validate' => 'isInt', 'required' => true],
+            'expiration_date' => ['type' => self::TYPE_DATE, 'validate' => 'isDateFormat'],
             'last_updated' => ['type' => self::TYPE_DATE],
         ],
     ];

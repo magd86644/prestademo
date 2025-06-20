@@ -25,6 +25,7 @@ class BrandLoyaltyPoints extends Module
         require_once _PS_MODULE_DIR_ . 'brandloyaltypoints/helpers/LoyaltyPointsHelper.php';
     }
     // TODO add a cron job to remove old records from the loyalty points table (older than 1 year)
+    // TODO add a cron jon to remove expired loyalty points (older than 6 months)
     public function install()
     {
         if (!parent::install()) {
@@ -38,10 +39,17 @@ class BrandLoyaltyPoints extends Module
             `points` INT NOT NULL DEFAULT 0,
             `last_updated` DATETIME NOT NULL,
             `id_cart_rule` INT UNSIGNED DEFAULT NULL,
+            `expiration_date` DATE NULL,
             CONSTRAINT `fk_customer_id` FOREIGN KEY (`id_customer`) REFERENCES `' . _DB_PREFIX_ . 'customer` (`id_customer`) ON DELETE CASCADE,
             CONSTRAINT `fk_manufacturer_id` FOREIGN KEY (`id_manufacturer`) REFERENCES `' . _DB_PREFIX_ . 'manufacturer` (`id_manufacturer`) ON DELETE CASCADE,
             UNIQUE KEY `customer_brand_unique` (`id_customer`, `id_manufacturer`)
             ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8;';
+
+        // Add the expiration_date column if it doesn't exist
+        $check = Db::getInstance()->executeS("SHOW COLUMNS FROM `" . _DB_PREFIX_ . "loyalty_points` LIKE 'expiration_date'");
+        if (empty($check)) {
+            Db::getInstance()->execute("ALTER TABLE `" . _DB_PREFIX_ . "loyalty_points` ADD COLUMN `expiration_date` DATE NULL");
+        }
 
         if (!Db::getInstance()->execute($sqlLoyaltyPoints)) {
             $error = Db::getInstance()->getMsgError();
@@ -308,6 +316,11 @@ class BrandLoyaltyPoints extends Module
                 'points_granted' => (int) $earnedPoints,
                 'date_added' => date('Y-m-d H:i:s')
             ]);
+            // update expiration date to 6 months from now for all brands for this customer
+            $expirationDate = (new DateTime())->modify('+6 months')->format('Y-m-d');
+            Db::getInstance()->update('loyalty_points', [
+                'expiration_date' => $expirationDate
+            ], 'id_customer = ' . (int) $customerId);
         }
     }
 
@@ -335,11 +348,13 @@ class BrandLoyaltyPoints extends Module
 
         // Query: get loyalty points grouped by brand
         $rawPointsData = Db::getInstance()->executeS(
-            'SELECT m.id_manufacturer, m.name AS manufacturer_name, SUM(lp.points) AS total_points
-         FROM `' . _DB_PREFIX_ . 'loyalty_points` lp
-         LEFT JOIN `' . _DB_PREFIX_ . 'manufacturer` m ON m.id_manufacturer = lp.id_manufacturer
-         WHERE lp.id_customer = ' . $customerId . '
-         GROUP BY lp.id_manufacturer'
+            (new DbQuery())
+                ->select('m.id_manufacturer, m.name AS manufacturer_name, SUM(lp.points) AS total_points')
+                ->from('loyalty_points', 'lp')
+                ->leftJoin('manufacturer', 'm', 'm.id_manufacturer = lp.id_manufacturer')
+                ->where('lp.id_customer = ' . (int) $customerId)
+                ->where('(lp.expiration_date IS NULL OR lp.expiration_date >= CURDATE())')
+                ->groupBy('lp.id_manufacturer')
         );
 
         // Get brand totals in the current cart
@@ -455,7 +470,7 @@ class BrandLoyaltyPoints extends Module
             SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'loyalty_points_history`
             WHERE id_order = ' . $orderId
             );
-            
+
             if ($alreadyGranted) {
                 return; // Points already granted for this order
             }
