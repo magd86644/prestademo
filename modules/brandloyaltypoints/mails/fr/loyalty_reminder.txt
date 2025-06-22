@@ -1,0 +1,15 @@
+Bonjour {firstname},
+
+Vous avez encore {points} miles disponibles sur les produits du laboratoire {brand_name}.
+
+🎁 Ces points peuvent être transformés en remises exclusives sur vos produits favoris de ce laboratoire.
+
+⚠ Attention : vos miles {brand_name} expirent le {expiration_date}.
+
+👉 Faites un nouvel achat {brand_name} dès aujourd’hui pour prolonger la validité de vos miles et continuer à profiter des avantages fidélité.
+
+Je découvre les produits {brand_name} : {brand_products_url}
+
+Merci de votre confiance,
+
+— L’équipe Paraland

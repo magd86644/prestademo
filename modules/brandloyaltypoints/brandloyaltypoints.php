@@ -12,7 +12,7 @@ class BrandLoyaltyPoints extends Module
     {
         $this->name = 'brandloyaltypoints';
         $this->tab = 'administration';
-        $this->version = '1.0.5';
+        $this->version = '1.0.6';
         $this->author = 'Majd CHEIKH HANNA';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -72,7 +72,7 @@ class BrandLoyaltyPoints extends Module
             PrestaShopLogger::addLog('Error creating brand_loyalty_config table: ' . $error, 3);
             return false;
         }
-        // Create loyalty_points_history table, This table will track points granted per order
+        // Create loyalty points history table, This table will track points granted per order
         $sqlLoyaltyHistory = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'loyalty_points_history` (
             `id_loyalty_points_history` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             `id_order` INT UNSIGNED NOT NULL,
@@ -298,6 +298,10 @@ class BrandLoyaltyPoints extends Module
             }
             $conversionRate = LoyaltyPointsHelper::getConversionRateByManufacturer($brandId);
             if ($conversionRate <= 0) {
+                PrestaShopLogger::addLog(
+                    "Loyalty program: No conversion rate set for brand ID: $brandId in order ID: {$order->id}",
+                    3
+                );
                 continue;
             }
             // Calculate proportional discount
@@ -334,7 +338,7 @@ class BrandLoyaltyPoints extends Module
             $expirationDate = (new DateTime())->modify('+6 months')->format('Y-m-d');
             Db::getInstance()->update('loyalty_points', [
                 'expiration_date' => $expirationDate
-            ], 'id_customer = ' . (int) $customerId);
+            ], 'id_customer = ' . (int) $customerId . ' AND id_manufacturer = ' . (int) $brandId);
         }
     }
 
@@ -493,6 +497,62 @@ class BrandLoyaltyPoints extends Module
             $usedCartRules = $order->getCartRules();
 
             $this->grantLoyaltyPointsBasedOnPaidAmount($order, $usedCartRules, $customerId);
+        }
+    }
+
+    public function sendLoyaltyExpiryReminders()
+    {
+        // add logs
+        PrestaShopLogger::addLog('Loyalty points expiration reminder cron job started', 1, null, 'LoyaltyPoints', 0, true);
+        $now = date('Y-m-d');
+        $threeMonthsLater = date('Y-m-d', strtotime('+3 months'));
+        $oneMonthLater = date('Y-m-d', strtotime('+1 month'));
+
+        $sql = 'SELECT lp.id_customer, lp.points, lp.expiration_date, m.name AS brand_name
+            FROM ' . _DB_PREFIX_ . 'loyalty_points lp
+            INNER JOIN ' . _DB_PREFIX_ . 'manufacturer m ON m.id_manufacturer = lp.id_manufacturer
+            WHERE lp.expiration_date IN ("' . pSQL($threeMonthsLater) . '", "' . pSQL($oneMonthLater) . '") 
+            AND lp.points > 0';
+        // log the query
+        PrestaShopLogger::addLog('Loyalty points expiration reminder query: ' . $sql, 1, null, 'LoyaltyPoints', 0, true);
+
+        $expiringPoints = Db::getInstance()->executeS($sql);
+        if (!$expiringPoints) {
+            PrestaShopLogger::addLog('No loyalty points expiring soon found', 1, null, 'LoyaltyPoints', 0, true);
+            return; // No points expiring soon
+        }
+
+        foreach ($expiringPoints as $row) {
+            $customer = new Customer((int)$row['id_customer']);
+            $templateVars = [
+                '{firstname}' => $customer->firstname,
+                '{lastname}' => $customer->lastname,
+                '{points}' => (int)$row['points'],
+                '{brand}' => $row['brand_name'],
+                '{expiration_date}' => date('d/m/Y', strtotime($row['expiration_date'])),
+            ];
+
+        
+            // check if mail not send add log
+            if (!Mail::Send(
+                (int)Language::getIdByIso('fr'),
+                'loyalty_reminder',
+                'Vos miles ' . $row['brand_name'] . ' expirent bientôt',
+                $templateVars,
+                $customer->email,
+                $customer->firstname . ' ' . $customer->lastname,
+                null,
+                null,
+                null,
+                null,
+                _PS_MODULE_DIR_ . 'brandloyaltypoints/mails/',
+                false,
+                (int) $customer->id_shop
+            )) {
+                PrestaShopLogger::addLog('Failed to send loyalty points expiration reminder email to customer ID: ' . $row['id_customer'], 3, null, 'LoyaltyPoints', 0, true);
+            } else {
+                PrestaShopLogger::addLog('Loyalty points expiration reminder email sent to customer ID: ' . $row['id_customer'], 1, null, 'LoyaltyPoints', 0, true);
+            }
         }
     }
 }

@@ -122,10 +122,26 @@ class AdminLoyaltyReportController extends ModuleAdminController
         return $html;
     }
 
-
     protected function generateReportTable($month, $brandId)
     {
-        // Add time parts to include full days in date range
+        // if no month or no brand is selected, return an error message
+        if (empty($month) || empty($brandId)) {
+            return '<div class="alert alert-danger">' . $this->l('Please select a month and a brand.') . '</div>';
+        }
+        $html = '';
+
+        $html .= $this->generateSummaryTable($month, $brandId);
+        $html .= '<br><hr>';
+        $html .= $this->generateEarnedPointsTable($month, $brandId);
+        $html .= '<br><hr>';
+        $html .= $this->generateSpentPointsTable($month, $brandId);
+
+        return $html;
+    }
+
+
+    private function generateSummaryTable($month, $brandId)
+    {
         $startDate = $month . '-01 00:00:00';
         $endDate = date("Y-m-t 23:59:59", strtotime($startDate));
 
@@ -139,29 +155,27 @@ class AdminLoyaltyReportController extends ModuleAdminController
         INNER JOIN ' . _DB_PREFIX_ . 'manufacturer m 
             ON m.id_manufacturer = CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(cr.code, "_", -2), "_", 1) AS UNSIGNED)
         WHERE cr.code LIKE "LOYALTY_BRAND\_%" 
-        AND o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"';
-
-        if (!empty($brandId)) {
-            $sql .= ' AND m.id_manufacturer = ' . (int)$brandId;
-        }
-
-        $sql .= ' GROUP BY m.id_manufacturer ORDER BY total_discount DESC';
-
+        AND o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
+        AND m.id_manufacturer = ' . (int)$brandId . '
+        GROUP BY m.id_manufacturer
+        ORDER BY m.name ASC
+    ';
         $results = Db::getInstance()->executeS($sql);
 
         if (empty($results)) {
             return '<div class="alert alert-warning">' . $this->l('No data for selected month and brand.') . '</div>';
         }
 
-        $html = '<table class="table">
-        <thead>
-            <tr>
-                <th>' . $this->l('Brand') . '</th>
-                <th>' . $this->l('Orders Used') . '</th>
-                <th>' . $this->l('Total Discount Used') . '</th>
-            </tr>
-        </thead>
-        <tbody>';
+        $html = '<h4>' . $this->l('Summary') . '</h4>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>' . $this->l('Brand') . '</th>
+                    <th>' . $this->l('Orders Used') . '</th>
+                    <th>' . $this->l('Total Discount Used') . '</th>
+                </tr>
+            </thead>
+            <tbody>';
 
         foreach ($results as $row) {
             $html .= '<tr>
@@ -172,7 +186,98 @@ class AdminLoyaltyReportController extends ModuleAdminController
         }
 
         $html .= '</tbody></table>';
+        return $html;
+    }
 
+    private function generateEarnedPointsTable($month, $brandId)
+    {
+        $startDate = $month . '-01 00:00:00';
+        $endDate = date("Y-m-t 23:59:59", strtotime($startDate));
+
+        $sql = '
+    SELECT DISTINCT o.reference, o.date_add, lph.points_granted
+    FROM ' . _DB_PREFIX_ . 'loyalty_points_history lph
+    INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = lph.id_order
+    INNER JOIN ' . _DB_PREFIX_ . 'order_detail od ON od.id_order = o.id_order
+    INNER JOIN ' . _DB_PREFIX_ . 'product p ON p.id_product = od.product_id
+    WHERE o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
+      AND p.id_manufacturer = ' . (int)$brandId . '
+    ORDER BY o.date_add DESC
+    ';
+
+        $results = Db::getInstance()->executeS($sql);
+
+        if (empty($results)) {
+            return '<div class="alert alert-info">' . $this->l('No points earned for this brand in this month.') . '</div>';
+        }
+
+        $html = '<h4>' . $this->l('Orders That Earned Points') . '</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>' . $this->l('Order Ref') . '</th>
+                <th>' . $this->l('Date') . '</th>
+                <th>' . $this->l('Points Earned') . '</th>
+            </tr>
+        </thead>
+        <tbody>';
+
+        foreach ($results as $row) {
+            $html .= '<tr>
+        <td>' . htmlspecialchars($row['reference']) . '</td>
+        <td>' . htmlspecialchars($row['date_add']) . '</td>
+        <td>' . (int)$row['points_granted'] . '</td>
+    </tr>';
+        }
+
+        $html .= '</tbody></table>';
+        return $html;
+    }
+
+
+    private function generateSpentPointsTable($month, $brandId)
+    {
+        $startDate = $month . '-01 00:00:00';
+        $endDate = date("Y-m-t 23:59:59", strtotime($startDate));
+
+        $sql = '
+        SELECT o.reference, o.date_add, ocr.value AS discount_used
+        FROM ' . _DB_PREFIX_ . 'orders o
+        INNER JOIN ' . _DB_PREFIX_ . 'order_cart_rule ocr ON o.id_order = ocr.id_order
+        INNER JOIN ' . _DB_PREFIX_ . 'cart_rule cr ON cr.id_cart_rule = ocr.id_cart_rule
+        INNER JOIN ' . _DB_PREFIX_ . 'manufacturer m 
+            ON m.id_manufacturer = CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(cr.code, "_", -2), "_", 1) AS UNSIGNED)
+        WHERE cr.code LIKE "LOYALTY_BRAND\_%" 
+        AND o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
+        AND m.id_manufacturer = ' . (int)$brandId . '
+        ORDER BY o.date_add DESC
+    ';
+        $results = Db::getInstance()->executeS($sql);
+
+        if (empty($results)) {
+            return '<div class="alert alert-info">' . $this->l('No points used for this brand in this month.') . '</div>';
+        }
+
+        $html = '<h4>' . $this->l('Orders That Used Points') . '</h4>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>' . $this->l('Order Ref') . '</th>
+                    <th>' . $this->l('Date') . '</th>
+                    <th>' . $this->l('Discount Used') . '</th>
+                </tr>
+            </thead>
+            <tbody>';
+
+        foreach ($results as $row) {
+            $html .= '<tr>
+            <td>' . htmlspecialchars($row['reference']) . '</td>
+            <td>' . htmlspecialchars($row['date_add']) . '</td>
+            <td>' . Tools::displayPrice((float)$row['discount_used'], $this->context->currency) . '</td>
+        </tr>';
+        }
+
+        $html .= '</tbody></table>';
         return $html;
     }
 }
