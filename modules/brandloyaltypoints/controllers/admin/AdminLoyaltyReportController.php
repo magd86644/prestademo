@@ -14,6 +14,13 @@ class AdminLoyaltyReportController extends ModuleAdminController
     {
         parent::initContent();
         $this->content .= $this->renderReportForm();
+        if (Tools::isSubmit('export_csv')) {
+            $this->exportReportCsv(
+                Tools::getValue('report_month'),
+                (int)Tools::getValue('report_brand')
+            );
+            exit;
+        }
         $this->context->smarty->assign([
             'content' => $this->content
         ]);
@@ -81,7 +88,7 @@ class AdminLoyaltyReportController extends ModuleAdminController
                         'type' => 'select',
                         'label' => $this->l('Brand'),
                         'name' => 'report_brand',
-                        'required' => true, // Added required attribute
+                        'required' => true,
                         'options' => [
                             'query' => $brandOptions,
                             'id' => 'id_manufacturer',
@@ -94,6 +101,15 @@ class AdminLoyaltyReportController extends ModuleAdminController
                     'class' => 'btn btn-default pull-right',
                     'icon' => 'process-icon-download'
                 ],
+                'buttons' => [
+                    [
+                        'title' => $this->l('Export CSV'),
+                        'name' => 'export_csv',
+                        'type' => 'submit',
+                        'class' => 'btn btn-default',
+                        'icon' => 'process-icon-export'
+                    ],
+                ]
             ],
         ];
 
@@ -158,8 +174,7 @@ class AdminLoyaltyReportController extends ModuleAdminController
         AND o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
         AND m.id_manufacturer = ' . (int)$brandId . '
         GROUP BY m.id_manufacturer
-        ORDER BY m.name ASC
-    ';
+        ORDER BY m.name ASC';
         $results = Db::getInstance()->executeS($sql);
 
         if (empty($results)) {
@@ -195,15 +210,15 @@ class AdminLoyaltyReportController extends ModuleAdminController
         $endDate = date("Y-m-t 23:59:59", strtotime($startDate));
 
         $sql = '
-    SELECT DISTINCT o.reference, o.date_add, lph.points_granted
-    FROM ' . _DB_PREFIX_ . 'loyalty_points_history lph
-    INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = lph.id_order
-    INNER JOIN ' . _DB_PREFIX_ . 'order_detail od ON od.id_order = o.id_order
-    INNER JOIN ' . _DB_PREFIX_ . 'product p ON p.id_product = od.product_id
-    WHERE o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
-      AND p.id_manufacturer = ' . (int)$brandId . '
-    ORDER BY o.date_add DESC
-    ';
+            SELECT DISTINCT o.reference, o.date_add, lph.points_granted
+            FROM ' . _DB_PREFIX_ . 'loyalty_points_history lph
+            INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = lph.id_order
+            INNER JOIN ' . _DB_PREFIX_ . 'order_detail od ON od.id_order = o.id_order
+            INNER JOIN ' . _DB_PREFIX_ . 'product p ON p.id_product = od.product_id
+            WHERE o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
+            AND p.id_manufacturer = ' . (int)$brandId . '
+            ORDER BY o.date_add DESC
+            ';
 
         $results = Db::getInstance()->executeS($sql);
 
@@ -212,22 +227,22 @@ class AdminLoyaltyReportController extends ModuleAdminController
         }
 
         $html = '<h4>' . $this->l('Orders That Earned Points') . '</h4>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>' . $this->l('Order Ref') . '</th>
-                <th>' . $this->l('Date') . '</th>
-                <th>' . $this->l('Points Earned') . '</th>
-            </tr>
-        </thead>
-        <tbody>';
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>' . $this->l('Order Ref') . '</th>
+                    <th>' . $this->l('Date') . '</th>
+                    <th>' . $this->l('Points Earned') . '</th>
+                </tr>
+            </thead>
+            <tbody>';
 
         foreach ($results as $row) {
             $html .= '<tr>
-        <td>' . htmlspecialchars($row['reference']) . '</td>
-        <td>' . htmlspecialchars($row['date_add']) . '</td>
-        <td>' . (int)$row['points_granted'] . '</td>
-    </tr>';
+                    <td>' . htmlspecialchars($row['reference']) . '</td>
+                    <td>' . htmlspecialchars($row['date_add']) . '</td>
+                    <td>' . (int)$row['points_granted'] . '</td>
+            </tr>';
         }
 
         $html .= '</tbody></table>';
@@ -279,5 +294,106 @@ class AdminLoyaltyReportController extends ModuleAdminController
 
         $html .= '</tbody></table>';
         return $html;
+    }
+
+    protected function exportReportCsv($month, $brandId)
+    {
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=loyalty_report_' . $month . '_brand_' . $brandId . '.csv');
+
+        $output = fopen('php://output', 'w');
+
+        // Add headers
+        fputcsv($output, ['--- Summary ---']);
+        fputcsv($output, ['Brand', 'Orders Used', 'Total Discount']);
+
+        $summaryData = $this->getSummaryData($month, $brandId);
+        foreach ($summaryData as $row) {
+            fputcsv($output, [$row['brand_name'], $row['orders_count'], $row['total_discount']]);
+        }
+
+        fputcsv($output, []);
+        fputcsv($output, ['--- Earned Points ---']);
+        fputcsv($output, ['Order Ref', 'Date', 'Points Earned']);
+
+        $earnedData = $this->getEarnedPointsData($month, $brandId);
+        foreach ($earnedData as $row) {
+            fputcsv($output, [$row['reference'], $row['date_add'], $row['points_granted']]);
+        }
+
+        fputcsv($output, []);
+        fputcsv($output, ['--- Spent Points ---']);
+        fputcsv($output, ['Order Ref', 'Date', 'Discount Used']);
+
+        $spentData = $this->getSpentPointsData($month, $brandId);
+        foreach ($spentData as $row) {
+            fputcsv($output, [$row['reference'], $row['date_add'], $row['discount_used']]);
+        }
+
+        fclose($output);
+    }
+
+    private function getSummaryData($month, $brandId)
+    {
+        $startDate = $month . '-01 00:00:00';
+        $endDate = date("Y-m-t 23:59:59", strtotime($startDate));
+
+        $sql = '
+        SELECT m.name AS brand_name,
+               COUNT(DISTINCT o.id_order) AS orders_count,
+               SUM(ocr.value) AS total_discount
+        FROM ' . _DB_PREFIX_ . 'orders o
+        INNER JOIN ' . _DB_PREFIX_ . 'order_cart_rule ocr ON o.id_order = ocr.id_order
+        INNER JOIN ' . _DB_PREFIX_ . 'cart_rule cr ON cr.id_cart_rule = ocr.id_cart_rule
+        INNER JOIN ' . _DB_PREFIX_ . 'manufacturer m 
+            ON m.id_manufacturer = CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(cr.code, "_", -2), "_", 1) AS UNSIGNED)
+        WHERE cr.code LIKE "LOYALTY_BRAND\_%" 
+        AND o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
+        AND m.id_manufacturer = ' . (int)$brandId . '
+        GROUP BY m.id_manufacturer
+        ORDER BY m.name ASC
+    ';
+
+        return Db::getInstance()->executeS($sql);
+    }
+
+    private function getEarnedPointsData($month, $brandId)
+    {
+        $startDate = $month . '-01 00:00:00';
+        $endDate = date("Y-m-t 23:59:59", strtotime($startDate));
+
+        $sql = '
+        SELECT DISTINCT o.reference, o.date_add, lph.points_granted
+        FROM ' . _DB_PREFIX_ . 'loyalty_points_history lph
+        INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = lph.id_order
+        INNER JOIN ' . _DB_PREFIX_ . 'order_detail od ON od.id_order = o.id_order
+        INNER JOIN ' . _DB_PREFIX_ . 'product p ON p.id_product = od.product_id
+        WHERE o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
+        AND p.id_manufacturer = ' . (int)$brandId . '
+        ORDER BY o.date_add DESC
+    ';
+
+        return Db::getInstance()->executeS($sql);
+    }
+
+    private function getSpentPointsData($month, $brandId)
+    {
+        $startDate = $month . '-01 00:00:00';
+        $endDate = date("Y-m-t 23:59:59", strtotime($startDate));
+
+        $sql = '
+        SELECT o.reference, o.date_add, ocr.value AS discount_used
+        FROM ' . _DB_PREFIX_ . 'orders o
+        INNER JOIN ' . _DB_PREFIX_ . 'order_cart_rule ocr ON o.id_order = ocr.id_order
+        INNER JOIN ' . _DB_PREFIX_ . 'cart_rule cr ON cr.id_cart_rule = ocr.id_cart_rule
+        INNER JOIN ' . _DB_PREFIX_ . 'manufacturer m 
+            ON m.id_manufacturer = CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(cr.code, "_", -2), "_", 1) AS UNSIGNED)
+        WHERE cr.code LIKE "LOYALTY_BRAND\_%" 
+        AND o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
+        AND m.id_manufacturer = ' . (int)$brandId . '
+        ORDER BY o.date_add DESC
+    ';
+
+        return Db::getInstance()->executeS($sql);
     }
 }

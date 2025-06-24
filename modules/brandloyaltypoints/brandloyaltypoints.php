@@ -12,7 +12,7 @@ class BrandLoyaltyPoints extends Module
     {
         $this->name = 'brandloyaltypoints';
         $this->tab = 'administration';
-        $this->version = '1.0.6';
+        $this->version = '1.0.7';
         $this->author = 'Majd CHEIKH HANNA';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -137,17 +137,12 @@ class BrandLoyaltyPoints extends Module
             $this->updatePointsConversionRate();
         }
 
-        // Fetch manufacturers and current conversion rates
         $manufacturers = $this->getManufacturersWithConversionRates();
-
-        // Assign variables to smarty
         $this->context->smarty->assign([
-            'logo_path' => $this->_path . 'logo.png',  // Assuming your logo is located at 'views/img/logo.png'
+            'logo_path' => $this->_path . 'logo.png',
             'manufacturers' => $manufacturers,
-            'form_action' => $_SERVER['REQUEST_URI'], // Current URL to handle form submission
+            'form_action' => $_SERVER['REQUEST_URI'],
         ]);
-
-        // Render the template
         return $this->display(__FILE__, 'views/templates/admin/configure.tpl');
     }
 
@@ -207,7 +202,6 @@ class BrandLoyaltyPoints extends Module
                 ['position' => 'bottom', 'priority' => 150]
             );
         }
-        // For the customer loyalty points page: module-brandloyaltypoints-accountloyaltypoints
 
         $routeName = Tools::getValue('controller');
 
@@ -502,7 +496,6 @@ class BrandLoyaltyPoints extends Module
 
     public function sendLoyaltyExpiryReminders()
     {
-        // add logs
         PrestaShopLogger::addLog('Loyalty points expiration reminder cron job started', 1, null, 'LoyaltyPoints', 0, true);
         $now = date('Y-m-d');
         $threeMonthsLater = date('Y-m-d', strtotime('+3 months'));
@@ -532,7 +525,7 @@ class BrandLoyaltyPoints extends Module
                 '{expiration_date}' => date('d/m/Y', strtotime($row['expiration_date'])),
             ];
 
-        
+
             // check if mail not send add log
             if (!Mail::Send(
                 (int)Language::getIdByIso('fr'),
