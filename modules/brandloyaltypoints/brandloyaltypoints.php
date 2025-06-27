@@ -12,7 +12,7 @@ class BrandLoyaltyPoints extends Module
     {
         $this->name = 'brandloyaltypoints';
         $this->tab = 'administration';
-        $this->version = '1.0.7';
+        $this->version = '1.0.8';
         $this->author = 'Majd CHEIKH HANNA';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -85,6 +85,23 @@ class BrandLoyaltyPoints extends Module
         if (!Db::getInstance()->execute($sqlLoyaltyHistory)) {
             $error = Db::getInstance()->getMsgError();
             PrestaShopLogger::addLog('Error creating loyalty_points_history table: ' . $error, 3);
+            return false;
+        }
+        // Create loyalty points breakdown table, This table will track points granted per order and brand
+        $sqlLoyaltyPointsBreakdown = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'loyalty_points_order_brand` (
+            `id_loyalty_points_order_brand` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `id_order` INT UNSIGNED NOT NULL,
+            `id_customer` INT UNSIGNED NOT NULL,
+            `id_manufacturer` INT UNSIGNED NOT NULL,
+            `points_granted` INT NOT NULL DEFAULT 0,
+            `date_added` DATETIME NOT NULL,
+            UNIQUE KEY `order_brand_unique` (`id_order`, `id_manufacturer`),
+            INDEX `idx_customer` (`id_customer`)
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8;';
+
+         if (!Db::getInstance()->execute($sqlLoyaltyPointsBreakdown)) {
+            $error = Db::getInstance()->getMsgError();
+            PrestaShopLogger::addLog('Error creating loyalty_points_order_brand table: ' . $error, 3);
             return false;
         }
 
@@ -284,6 +301,7 @@ class BrandLoyaltyPoints extends Module
         if ($totalOrderProductPrice <= 0) {
             return;
         }
+        $totalPointsGranted = 0;
         foreach ($products as $product) {
             $brandId = (int) $product['id_manufacturer'];
             $productTotal = (float) $product['total_price_tax_incl'];
@@ -312,6 +330,8 @@ class BrandLoyaltyPoints extends Module
                 continue; // no points to grant
             }
 
+            $totalPointsGranted += $earnedPoints;
+            // Update points per customer-brand
             Db::getInstance()->execute('
             INSERT INTO `' . _DB_PREFIX_ . 'loyalty_points`
             (`id_customer`, `id_manufacturer`, `points`, `last_updated`) 
@@ -322,17 +342,37 @@ class BrandLoyaltyPoints extends Module
               ');
 
 
-            Db::getInstance()->insert('loyalty_points_history', [
-                'id_order' => (int) $order->id,
-                'id_customer' => (int) $customerId,
-                'points_granted' => (int) $earnedPoints,
-                'date_added' => date('Y-m-d H:i:s')
-            ]);
-            // update expiration date to 6 months from now for all brands for this customer
+            // Insert into loyalty points order brand table
+            Db::getInstance()->execute('
+                INSERT INTO `' . _DB_PREFIX_ . 'loyalty_points_order_brand`
+                (`id_order`, `id_customer`, `id_manufacturer`, `points_granted`, `date_added`)
+                VALUES (
+                    ' . (int) $order->id . ',
+                    ' . (int) $customerId . ',
+                    ' . (int) $brandId . ',
+                    ' . (int) $earnedPoints . ',
+                    NOW()
+                )
+                ON DUPLICATE KEY UPDATE
+                    points_granted = points_granted + ' . (int) $earnedPoints . ',
+                    date_added = NOW()
+            ');
+
+            // update expiration date to 6 months from now
             $expirationDate = (new DateTime())->modify('+6 months')->format('Y-m-d');
             Db::getInstance()->update('loyalty_points', [
                 'expiration_date' => $expirationDate
             ], 'id_customer = ' . (int) $customerId . ' AND id_manufacturer = ' . (int) $brandId);
+        }
+
+        //  Insert one total record for history
+        if ($totalPointsGranted > 0) {
+            Db::getInstance()->insert('loyalty_points_history', [
+                'id_order' => (int) $order->id,
+                'id_customer' => (int) $customerId,
+                'points_granted' => (int) $totalPointsGranted,
+                'date_added' => date('Y-m-d H:i:s')
+            ]);
         }
     }
 
@@ -521,7 +561,7 @@ class BrandLoyaltyPoints extends Module
                 '{firstname}' => $customer->firstname,
                 '{lastname}' => $customer->lastname,
                 '{points}' => (int)$row['points'],
-                '{brand}' => $row['brand_name'],
+                '{brand_name}' => $row['brand_name'],
                 '{expiration_date}' => date('d/m/Y', strtotime($row['expiration_date'])),
             ];
 

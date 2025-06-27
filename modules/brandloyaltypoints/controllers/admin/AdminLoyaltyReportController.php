@@ -178,7 +178,7 @@ class AdminLoyaltyReportController extends ModuleAdminController
         $results = Db::getInstance()->executeS($sql);
 
         if (empty($results)) {
-            return '<div class="alert alert-warning">' . $this->l('No data for selected month and brand.') . '</div>';
+            return '<div class="alert alert-info">' . $this->l('No data for selected month and brand.') . '</div>';
         }
 
         $html = '<h4>' . $this->l('Summary') . '</h4>
@@ -210,13 +210,11 @@ class AdminLoyaltyReportController extends ModuleAdminController
         $endDate = date("Y-m-t 23:59:59", strtotime($startDate));
 
         $sql = '
-            SELECT DISTINCT o.reference, o.date_add, lph.points_granted
-            FROM ' . _DB_PREFIX_ . 'loyalty_points_history lph
-            INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = lph.id_order
-            INNER JOIN ' . _DB_PREFIX_ . 'order_detail od ON od.id_order = o.id_order
-            INNER JOIN ' . _DB_PREFIX_ . 'product p ON p.id_product = od.product_id
+        SELECT DISTINCT o.reference, o.date_add, lpob.points_granted
+        FROM ' . _DB_PREFIX_ . 'loyalty_points_order_brand lpob     
+        INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = lpob.id_order
             WHERE o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
-            AND p.id_manufacturer = ' . (int)$brandId . '
+            AND lpob.id_manufacturer = ' . (int)$brandId . '
             ORDER BY o.date_add DESC
             ';
 
@@ -363,13 +361,11 @@ class AdminLoyaltyReportController extends ModuleAdminController
         $endDate = date("Y-m-t 23:59:59", strtotime($startDate));
 
         $sql = '
-        SELECT DISTINCT o.reference, o.date_add, lph.points_granted
-        FROM ' . _DB_PREFIX_ . 'loyalty_points_history lph
-        INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = lph.id_order
-        INNER JOIN ' . _DB_PREFIX_ . 'order_detail od ON od.id_order = o.id_order
-        INNER JOIN ' . _DB_PREFIX_ . 'product p ON p.id_product = od.product_id
+        SELECT DISTINCT o.reference, o.date_add, lpob.points_granted
+        FROM ' . _DB_PREFIX_ . 'loyalty_points_order_brand lpob
+        INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = lpob.id_order
         WHERE o.date_add BETWEEN "' . pSQL($startDate) . '" AND "' . pSQL($endDate) . '"
-        AND p.id_manufacturer = ' . (int)$brandId . '
+        AND lpob.id_manufacturer = ' . (int)$brandId . '
         ORDER BY o.date_add DESC
     ';
 
