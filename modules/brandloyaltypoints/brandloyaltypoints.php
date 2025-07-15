@@ -12,7 +12,7 @@ class BrandLoyaltyPoints extends Module
     {
         $this->name = 'brandloyaltypoints';
         $this->tab = 'administration';
-        $this->version = '1.0.8';
+        $this->version = '1.0.9';
         $this->author = 'Majd CHEIKH HANNA';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -49,6 +49,17 @@ class BrandLoyaltyPoints extends Module
         $check = Db::getInstance()->executeS("SHOW COLUMNS FROM `" . _DB_PREFIX_ . "loyalty_points` LIKE 'expiration_date'");
         if (empty($check)) {
             Db::getInstance()->execute("ALTER TABLE `" . _DB_PREFIX_ . "loyalty_points` ADD COLUMN `expiration_date` DATE NULL");
+        }
+
+        // Add 'used_as_gift' column to ps_product if it doesn't exist
+        $checkGiftColumn = Db::getInstance()->executeS("SHOW COLUMNS FROM `" . _DB_PREFIX_ . "product` LIKE 'used_as_gift'");
+        if (empty($checkGiftColumn)) {
+            $sqlAddGiftColumn = "ALTER TABLE `" . _DB_PREFIX_ . "product` ADD COLUMN `used_as_gift` TINYINT(1) NOT NULL DEFAULT 0";
+            if (!Db::getInstance()->execute($sqlAddGiftColumn)) {
+                $error = Db::getInstance()->getMsgError();
+                PrestaShopLogger::addLog('Error adding used_as_gift column to product table: ' . $error, 3);
+                return false;
+            }
         }
 
         if (!Db::getInstance()->execute($sqlLoyaltyPoints)) {
@@ -99,9 +110,26 @@ class BrandLoyaltyPoints extends Module
             INDEX `idx_customer` (`id_customer`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8;';
 
-         if (!Db::getInstance()->execute($sqlLoyaltyPointsBreakdown)) {
+        if (!Db::getInstance()->execute($sqlLoyaltyPointsBreakdown)) {
             $error = Db::getInstance()->getMsgError();
             PrestaShopLogger::addLog('Error creating loyalty_points_order_brand table: ' . $error, 3);
+            return false;
+        }
+
+
+
+        $sqlBrandLoyaltyGift = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'brand_loyalty_gift` (
+        `id_brand_loyalty_gift` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        `id_manufacturer` INT UNSIGNED NOT NULL,
+        `id_product` INT UNSIGNED NOT NULL,
+        FOREIGN KEY (`id_manufacturer`) REFERENCES `' . _DB_PREFIX_ . 'manufacturer`(`id_manufacturer`) ON DELETE CASCADE,
+        FOREIGN KEY (`id_product`) REFERENCES `' . _DB_PREFIX_ . 'product`(`id_product`) ON DELETE CASCADE,
+        UNIQUE KEY `brand_product_unique` (`id_manufacturer`, `id_product`)
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8;';
+
+        if (!Db::getInstance()->execute($sqlBrandLoyaltyGift)) {
+            $error = Db::getInstance()->getMsgError();
+            PrestaShopLogger::addLog('Error creating brand_loyalty_gift table: ' . $error, 3);
             return false;
         }
 
@@ -113,7 +141,9 @@ class BrandLoyaltyPoints extends Module
             !$this->registerHook('displayShoppingCart') ||
             !$this->registerHook('actionCartSave') ||
             !$this->registerHook('displayCustomerAccount') ||
-            !$this->registerHook('actionOrderStatusPostUpdate')
+            !$this->registerHook('actionOrderStatusPostUpdate') ||
+            !$this->registerHook('displayAdminProductsMainStepLeftColumnBottom') ||
+            !$this->registerHook('actionProductUpdate')
         ) {
             return false;
         }
@@ -152,12 +182,14 @@ class BrandLoyaltyPoints extends Module
         if (Tools::isSubmit('submit_loyalty_points_config')) {
             // Handle form submission (save new conversion rates)
             $this->updatePointsConversionRate();
+            $this->updateBrandGifts();
         }
-
         $manufacturers = $this->getManufacturersWithConversionRates();
+        $brands = $this->getBrandsWithAvailableGifts();
         $this->context->smarty->assign([
             'logo_path' => $this->_path . 'logo.png',
             'manufacturers' => $manufacturers,
+            'brands' => $brands,
             'form_action' => $_SERVER['REQUEST_URI'],
         ]);
         return $this->display(__FILE__, 'views/templates/admin/configure.tpl');
@@ -587,5 +619,115 @@ class BrandLoyaltyPoints extends Module
                 PrestaShopLogger::addLog('Loyalty points expiration reminder email sent to customer ID: ' . $row['id_customer'], 1, null, 'LoyaltyPoints', 0, true);
             }
         }
+    }
+
+    public function hookDisplayAdminProductsMainStepLeftColumnBottom($params)
+    {
+        $idProduct = (int)$params['id_product'];
+        $product = new Product($idProduct);
+
+        // add logs to check if the product is loaded
+        if (!Validate::isLoadedObject($product)) {
+            PrestaShopLogger::addLog('Product not found or invalid ID: ' . $idProduct, 3, null, 'BrandLoyaltyPoints', 0, true);
+            return '';
+        }
+        $sql = 'SELECT `used_as_gift` FROM `' . _DB_PREFIX_ . 'product`
+            WHERE `id_product` = ' . (int)$idProduct;
+        $usedAsGift = (bool)Db::getInstance()->getValue($sql);
+        $checked = $usedAsGift ? 'checked' : '';
+
+        return '
+    <div class="form-group">
+        <label>
+            <input type="checkbox" name="used_as_gift" value="1" ' . $checked . '>
+            ' . $this->l('Available as gift for loyalty points') . '
+        </label>
+    </div>';
+    }
+
+    public function hookActionProductUpdate($params)
+    {
+        if (!isset($params['id_product'])) {
+            PrestaShopLogger::addLog('hookActionProductUpdate: Missing id_product', 3);
+            return;
+        }
+
+        $idProduct = (int)$params['id_product'];
+        $usedAsGift = (int)Tools::getValue('used_as_gift', 0);
+
+        // Update the custom column directly
+        $sql = 'UPDATE `' . _DB_PREFIX_ . 'product` 
+            SET `used_as_gift` = ' . (int)$usedAsGift . '
+            WHERE `id_product` = ' . (int)$idProduct;
+
+        if (!Db::getInstance()->execute($sql)) {
+            PrestaShopLogger::addLog('hookActionProductUpdate: Failed to update used_as_gift for product ID ' . $idProduct, 3);
+        }
+    }
+
+    public function updateBrandGifts()
+    {
+        if (isset($_POST['brand_gifts']) && is_array($_POST['brand_gifts'])) {
+            // Clear existing selections
+            Db::getInstance()->execute('TRUNCATE TABLE ' . _DB_PREFIX_ . 'brand_loyalty_gift');
+
+            // Insert new selections
+            foreach ($_POST['brand_gifts'] as $id_manufacturer => $products) {
+                foreach ($products as $id_product) {
+                    Db::getInstance()->insert('brand_loyalty_gift', [
+                        'id_manufacturer' => (int)$id_manufacturer,
+                        'id_product' => (int)$id_product,
+                    ]);
+                }
+            }
+        }
+    }
+    public function getBrandsWithAvailableGifts()
+    {
+        // 1. Get all manufacturers
+        $brands = Db::getInstance()->executeS('
+        SELECT id_manufacturer, name 
+        FROM ' . _DB_PREFIX_ . 'manufacturer 
+        ORDER BY name ASC
+    ');
+
+        // 2. Get all products marked as gifts
+        $giftProducts = Db::getInstance()->executeS('
+        SELECT p.id_product, p.id_manufacturer, pl.name
+        FROM ' . _DB_PREFIX_ . 'product p
+        INNER JOIN ' . _DB_PREFIX_ . 'product_lang pl ON (p.id_product = pl.id_product AND pl.id_lang = ' . (int)$this->context->language->id . ')
+        WHERE p.used_as_gift = 1
+    ');
+
+        // 3. Get currently selected gifts per brand
+        $selectedGifts = Db::getInstance()->executeS('
+        SELECT id_manufacturer, id_product 
+        FROM ' . _DB_PREFIX_ . 'brand_loyalty_gift
+    ');
+
+        // 4. Index selected for quick lookup
+        $selectedMap = [];
+        foreach ($selectedGifts as $row) {
+            $selectedMap[$row['id_manufacturer']][$row['id_product']] = true;
+        }
+
+        // 5. Build products list per brand with selection status
+        $brandsWithProducts = [];
+        foreach ($brands as $brand) {
+            $brandProducts = [];
+            foreach ($giftProducts as $product) {
+                if ($product['id_manufacturer'] == $brand['id_manufacturer']) {
+                    $product['is_selected'] = isset($selectedMap[$brand['id_manufacturer']][$product['id_product']]);
+                    $brandProducts[] = $product;
+                }
+            }
+            $brandsWithProducts[] = [
+                'id_manufacturer' => $brand['id_manufacturer'],
+                'name' => $brand['name'],
+                'products' => $brandProducts,
+            ];
+        }
+
+        return $brandsWithProducts;
     }
 }
