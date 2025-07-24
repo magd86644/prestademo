@@ -454,6 +454,8 @@ class BrandLoyaltyPoints extends Module
         // Detect which loyalty rules are already applied
         $appliedManufacturerIds = [];
         foreach ($cart->getCartRules() as $rule) {
+            $cartRule = new CartRule($rule['id_cart_rule']);
+            // Discount rules
             if (strpos($rule['name'], 'Loyalty Discount - ') === 0) {
                 foreach ($rawPointsData as $entry) {
                     if (strpos($rule['name'], 'Loyalty Discount - ' . $entry['manufacturer_name']) === 0) {
@@ -461,7 +463,36 @@ class BrandLoyaltyPoints extends Module
                     }
                 }
             }
+
+            // Gift rules
+            PrestaShopLogger::addLog('Checking gift rules for cart rule: ' . $cartRule->id, 1, null, 'Cart', $cart->id, true);
+            // check if the name start with "Loyalty Gift"
+            if ($cartRule->gift_product > 0 && strpos($rule['name'], 'Loyalty Gift') === 0) {
+                // Get the manufacturer of the gift product
+                $giftProductId = (int) $cartRule->gift_product;
+                $manufacturerId = (int) Db::getInstance()->getValue(
+                    '
+                    SELECT id_manufacturer FROM ' . _DB_PREFIX_ . 'product WHERE id_product = ' . $giftProductId
+                );
+
+                if ($manufacturerId) {
+                    $appliedManufacturerIds[] = $manufacturerId;
+                }
+            }
+            if ($cartRule->gift_product > 0 && $rule['name'] === 'Loyalty Gift') {
+                // Get the manufacturer of the gift product
+                $giftProductId = (int) $cartRule->gift_product;
+                $manufacturerId = (int) Db::getInstance()->getValue(
+                    '
+                    SELECT id_manufacturer FROM ' . _DB_PREFIX_ . 'product WHERE id_product = ' . $giftProductId
+                );
+
+                if ($manufacturerId) {
+                    $appliedManufacturerIds[] = $manufacturerId;
+                }
+            }
         }
+        $appliedManufacturerIds = array_unique($appliedManufacturerIds);
 
         // Enhance points data
         foreach ($rawPointsData as &$entry) {
@@ -489,11 +520,43 @@ class BrandLoyaltyPoints extends Module
         $hasAppliedLoyalty = !empty($appliedManufacturerIds);
         $brandsInCart = LoyaltyPointsHelper::getBrandsInCart($cart);
 
+        $availableGifts = [];
+        foreach ($brandsInCart as $brandId => $total) {
+            $gifts = Db::getInstance()->executeS(
+                '
+                SELECT 
+                    p.id_product, 
+                    pl.name,
+                    (SELECT id_image FROM ' . _DB_PREFIX_ . 'image WHERE id_product = p.id_product AND cover = 1 LIMIT 1) AS id_image
+                FROM ' . _DB_PREFIX_ . 'brand_loyalty_gift blg
+                INNER JOIN ' . _DB_PREFIX_ . 'product p ON blg.id_product = p.id_product
+                INNER JOIN ' . _DB_PREFIX_ . 'product_lang pl ON (p.id_product = pl.id_product AND pl.id_lang = ' . (int)$this->context->language->id . ')
+                WHERE blg.id_manufacturer = ' . (int)$brandId
+            );
+
+            if (!empty($gifts)) {
+                foreach ($gifts as &$gift) {
+                    if (!empty($gift['id_image'])) {
+                        $gift['image_url'] = $this->context->link->getImageLink(
+                            Tools::link_rewrite($gift['name']),
+                            $gift['id_product'] . '-' . $gift['id_image'],
+                            'small_default' // Or use 'home_default', 'cart_default', etc.
+                        );
+                    } else {
+                        $gift['image_url'] = ''; // or a placeholder
+                    }
+                }
+                $availableGifts[$brandId] = $gifts;
+            }
+        }
+
         $this->context->smarty->assign([
             'loyaltyPointsApplyUrl' => $this->context->link->getModuleLink($this->name, 'applyloyaltypoints'),
             'loyaltyPointsRemoveUrl' => $this->context->link->getModuleLink($this->name, 'removeloyaltypoints'),
+            'loyaltyPointsApplyGiftUrl' => $this->context->link->getModuleLink($this->name, 'applygift'),
             'pointsData' => $rawPointsData,
             'hasAppliedLoyalty' => $hasAppliedLoyalty,
+            'availableGifts' => $availableGifts,
         ]);
 
         return $this->display(

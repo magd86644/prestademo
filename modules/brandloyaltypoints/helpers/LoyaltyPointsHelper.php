@@ -26,9 +26,6 @@ class LoyaltyPointsHelper
         return $brandsInCart;
     }
 
-
-
-
     /**
      * Generates the loyalty discount cart rule name for a given brand.
      *
@@ -249,5 +246,51 @@ class LoyaltyPointsHelper
                 }
             }
         }
+    }
+
+    public static function isAnyGiftApplied($cart)
+    {
+        $cartRules = Db::getInstance()->executeS(
+            '
+        SELECT cr.*
+        FROM ' . _DB_PREFIX_ . 'cart_rule cr
+        INNER JOIN ' . _DB_PREFIX_ . 'cart_cart_rule ccr ON cr.id_cart_rule = ccr.id_cart_rule
+        WHERE ccr.id_cart = ' . (int)$cart->id
+        );
+
+        foreach ($cartRules as $rule) {
+            if ((int)$rule['gift_product'] > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function createBrandLoyaltyGiftCartRule($customerId, $manufacturerId, $giftProductId, $giftPrice)
+    {
+        $cartRule = new CartRule();
+        $cartRule->description = 'Loyalty gift for brand #' . $manufacturerId;
+        $cartRule->code = 'LOYALTY_GIFT_BRAND_' . $manufacturerId . '_' . $customerId;
+        $cartRule->id_customer = $customerId;
+        $cartRule->date_from = date('Y-m-d H:i:s');
+        $cartRule->date_to = date('Y-m-d H:i:s', strtotime('+1 day'));
+        $cartRule->quantity = 1;
+        $cartRule->quantity_per_user = 1;
+        $cartRule->free_shipping = false;
+        $cartRule->gift_product = $giftProductId;
+        $cartRule->highlight = true;
+        $cartRule->active = 1;
+
+        $productName = Product::getProductName($giftProductId);
+        if (!$productName) {
+            return null;  // or throw error/log here
+        }
+
+        foreach (Language::getLanguages(true) as $lang) {
+            $cartRule->name[$lang['id_lang']] = 'Loyalty Gift - ' . $productName . ' (' . (int)$giftPrice . ' points)';
+        }
+
+        return $cartRule->add() ? $cartRule : null;
     }
 }

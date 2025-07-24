@@ -13,7 +13,7 @@ $(document).ready(function () {
         `);
     }
 
-    function handleLoyaltyAction(url) {
+    function handleLoyaltyAction(url, $button = null) {
         $.ajax({
             url: url,
             method: 'POST',
@@ -23,11 +23,37 @@ $(document).ready(function () {
                 if (response.success) {
                     setTimeout(function () {
                         reloadLoyaltyBlock();
-                    }, 1500);
+                    }, 1000);
+                } else {
+                    if ($button) {
+                        $button.text('Retry').prop('disabled', false);
+                    }
                 }
             },
-            error: function () {
-                showLoyaltyMessage('An unexpected error occurred, please try again.', 'danger');
+            error: function (jqXHR, textStatus, errorThrown) {
+                let errorMsg = 'An unexpected error occurred, please try again...';
+
+                // Try to parse and show the server response if it's JSON
+                if (jqXHR.responseJSON && jqXHR.responseJSON.message) {
+                    errorMsg = jqXHR.responseJSON.message;
+                }
+                // Otherwise, try the raw response text
+                else if (jqXHR.responseText) {
+                    errorMsg = jqXHR.responseText;
+                }
+
+                // Optional: Add status code and errorThrown to help debug
+                console.error('AJAX Error:', {
+                    status: jqXHR.status,
+                    statusText: textStatus,
+                    error: errorThrown,
+                    response: jqXHR.responseText
+                });
+
+                showLoyaltyMessage(errorMsg, 'danger');
+                if ($button) {
+                    $button.text('Apply').prop('disabled', false);
+                }
             }
         });
     }
@@ -35,22 +61,70 @@ $(document).ready(function () {
     $(document).on('click', '.apply-brand-loyalty', function () {
         const brandId = $(this).data('brand-id');
         if (!brandId) return;
-
+        const $btn = $(this);
         const url = `${applyLoyaltyPointsUrl}?brand=${brandId}`;
-        $(this).text('Applying...').prop('disabled', true);
-        handleLoyaltyAction(url);
+        $btn.text('Applying...').prop('disabled', true);
+        handleLoyaltyAction(url, $btn);
     });
     $(document).on('click', '#remove-loyalty-points', function () {
-        $(this).text('Removing...').prop('disabled', true);
-        handleLoyaltyAction(removeLoyaltyPointsUrl);
+        const $btn = $(this);
+        $btn.text('Removing...').prop('disabled', true);
+        handleLoyaltyAction(removeLoyaltyPointsUrl, $btn);
     });
 
     function reloadLoyaltyBlock() {
         window.prestashop.emit('updateCart', {
             reason: {
-                linkAction: 'loyaltyApplied' 
+                linkAction: 'loyaltyApplied'
             },
-            resp: {} 
+            resp: {}
         });
     }
+
+    // $(document).ready(function() {
+    console.log('Loyalty points apply script initialized');
+    // Toggle gift selection UI
+    $(document).on('click', '.choose-gift-btn', function () {
+        const brandId = $(this).data('brand-id');
+        const $section = $('#gift-options-' + brandId);
+        if ($section.is(':visible')) {
+            $section.hide();
+        } else {
+            $('.gift-selection').hide(); // hide others
+            $section.show();
+        }
+    });
+
+    // Handle applying selected gift
+    $(document).on('click', '.apply-gift-btn', function () {
+        const brandId = $(this).data('brand-id');
+        const $dropdown = $('.gift-dropdown[data-brand-id="' + brandId + '"]');
+        const productId = $dropdown.val();
+
+        if (!productId) {
+            showLoyaltyMessage('Please select a gift to apply.', 'warning');
+            return;
+        }
+        const $btn = $(this);
+        const url = `${applyGiftUrl}?brand=${brandId}&product=${productId}`;
+        $btn.text('Applying...').prop('disabled', true);
+        handleLoyaltyAction(url, $btn);
+    });
+
+    // Show gift image on selection 
+    $(document).on('change', '.gift-dropdown', function () {
+        const brandId = $(this).data('brand-id');
+        const productId = $(this).val();
+
+        const $section = $('#gift-options-' + brandId);
+
+        $section.find('.gift-image').hide();
+
+        if (productId) {
+            $section.find('.gift-image[data-gift-id="' + productId + '"]').show();
+        }
+    });
+
+
+
 });

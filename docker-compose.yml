@@ -14,6 +14,8 @@ services:
       - prestashop_data:/var/www/html
       - ./modules/brandloyaltypoints:/var/www/html/modules/brandloyaltypoints
       - ./prestashop_data/config/defines.inc.php:/var/www/html/config/defines.inc.php
+      - ./prestalogs_logs:/var/www/html/var/logs
+      - ./php.ini:/usr/local/etc/php/php.ini  
     restart: unless-stopped
 volumes:
   prestashop_data:

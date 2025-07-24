@@ -158,6 +158,13 @@ class AdminLoyaltyReportController extends ModuleAdminController
 
     private function generateSummaryTable($month, $brandId)
     {
+        // todo update where cr.code LIKE "LOYALTY_BRAND\_%" to 
+        // WHERE (cr.code LIKE "LOYALTY_BRAND\_%" OR cr.code LIKE "LOYALTY_GIFT_BRAND\_%")
+        // also we can differentiate the type in the report if needed:
+        //   CASE 
+        //   WHEN cr.code LIKE "LOYALTY_GIFT_BRAND\_%" THEN "Gift"
+        //   ELSE "Discount"
+        // END AS loyalty_type
         $startDate = $month . '-01 00:00:00';
         $endDate = date("Y-m-t 23:59:59", strtotime($startDate));
 
