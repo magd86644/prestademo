@@ -143,7 +143,8 @@ class BrandLoyaltyPoints extends Module
             !$this->registerHook('displayCustomerAccount') ||
             !$this->registerHook('actionOrderStatusPostUpdate') ||
             !$this->registerHook('displayAdminProductsMainStepLeftColumnBottom') ||
-            !$this->registerHook('actionProductUpdate')
+            !$this->registerHook('actionProductUpdate') ||
+            !$this->registerHook('displayOverrideTemplate')
         ) {
             return false;
         }
@@ -276,8 +277,11 @@ class BrandLoyaltyPoints extends Module
         if (!$customerId) {
             return;
         }
-
+        // log the order number with name Majd
+        PrestaShopLogger::addLog('MAJD Loyalty program: Validating order for customer ID: ' . $customerId
+            . ' order ID: ' . $order->id, 1);
         $usedCartRules = $order->getCartRules();
+        PrestaShopLogger::addLog('MAJD Loyalty program: Used cart rules count: ' . count($usedCartRules), 1);
         $this->handleUsedPointsDeduction($usedCartRules, $customerId);
     }
 
@@ -286,6 +290,8 @@ class BrandLoyaltyPoints extends Module
      */
     private function handleUsedPointsDeduction(array $usedCartRules, int $customerId): void
     {
+        PrestaShopLogger::addLog("MAJD Loyalty program: Handling used points deduction for customer ID: $customerId", 1);
+        prestashoplogger::addLog("MAJD Loyalty program: Used cart rules count: " . count($usedCartRules), 1);
         foreach ($usedCartRules as $cartRule) {
             $cartRuleId = (int) $cartRule['id_cart_rule'];
 
@@ -296,6 +302,33 @@ class BrandLoyaltyPoints extends Module
             FROM `' . _DB_PREFIX_ . 'loyalty_points`
             WHERE id_cart_rule = ' . $cartRuleId . '
             AND id_customer = ' . $customerId
+            );
+            if (!$pointsData) {
+                PrestaShopLogger::addLog(
+                    "MAJD Loyalty program: No points data found for cart rule ID: $cartRuleId and customer ID: $customerId",
+                    3
+                );
+                continue;
+            }
+            if ((float) $cartRule['value'] > 0) {
+                // Standard discount rule
+                $discountAmount = (float) $cartRule['value'];
+                $pointsUsed = floor($discountAmount);
+                PrestaShopLogger::addLog("MAJD Loyalty program: Discount rule detected. Points used: $pointsUsed", 1);
+            } else {
+                $rule = new CartRule($cartRuleId);
+                if ($rule->gift_product) {
+                    // Load product price (tax excluded)
+                    $product = new Product($rule->gift_product, false, Configuration::get('PS_LANG_DEFAULT'));
+                    $giftPrice = (float) Product::getPriceStatic($product->id, false);
+
+                    $pointsUsed = floor($giftPrice);
+                    PrestaShopLogger::addLog("MAJD Loyalty program: Gift rule detected. Product ID: {$product->id}, Price used for point deduction: $pointsUsed", 1);
+                }
+            }
+            PrestaShopLogger::addLog(
+                "MAJD cart rule value is: " . $cartRule['value'] . " for cart rule ID: $cartRuleId",
+                1
             );
 
             if ($pointsData) {
@@ -318,6 +351,17 @@ class BrandLoyaltyPoints extends Module
                 );
             }
         }
+    }
+
+    public function hookDisplayOverrideTemplate($params)
+    {
+        if ($params['template_file'] === 'checkout/cart') {
+            return 'module:brandloyaltypoints/views/templates/front/cart.tpl';
+        }
+        if ($params['template_file'] === 'checkout/_partials/cart-detailed') {
+            return 'module:brandloyaltypoints/views/templates/front/_partials/cart-detailed.tpl';
+        }
+        return null;
     }
 
     /**

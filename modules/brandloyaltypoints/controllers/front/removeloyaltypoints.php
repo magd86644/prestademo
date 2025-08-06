@@ -6,7 +6,7 @@ class BrandLoyaltyPointsRemoveLoyaltyPointsModuleFrontController extends ModuleF
     {
         parent::initContent();
 
-        $customerId = (int) $this->context->customer->id;
+        $customerId = (int)$this->context->customer->id;
         $cart = $this->context->cart;
 
         if (!$customerId || !$cart->id) {
@@ -16,77 +16,92 @@ class BrandLoyaltyPointsRemoveLoyaltyPointsModuleFrontController extends ModuleF
             ]));
         }
 
+        $result = $this->removeLoyaltyGiftsAndCartRules($cart, $customerId);
+
+        $this->ajaxDie(json_encode([
+            'success' => $result,
+            'message' => $result
+                ? 'Loyalty points discounts and gifts removed from your cart.'
+                : 'No loyalty points discounts or gifts were applied to remove.'
+        ]));
+    }
+
+    /**
+     * Removes loyalty gift products and related cart rules
+     */
+    private function removeLoyaltyGiftsAndCartRules(Cart $cart, int $customerId): bool
+    {
         $removedAny = false;
-        $giftProductIds = [];
 
-        // Get all active Cart Rules for this cart
-        $cartRules = $cart->getCartRules();
+        PrestaShopLogger::addLog("Starting removal of loyalty items for cart ID: {$cart->id}", 1, null, 'Cart', $cart->id, true);
 
-        // First pass: Identify gift products and remove cart rules
-        foreach ($cartRules as $rule) {
-            $cartRule = new CartRule((int)$rule['id_cart_rule']);
-            // Check if it's a loyalty rule
-            $isLoyaltyRule = (
-                strpos($cartRule->description, 'Loyalty points discount') !== false ||
-                strpos($cartRule->description, 'Loyalty gift') !== false ||
-                (int)$cartRule->gift_product > 0
-            );
+        $products = $cart->getProducts();
+        PrestaShopLogger::addLog("Cart has " . count($products) . " products", 1, null, 'Cart', $cart->id, true);
 
-            if ($isLoyaltyRule) {
-                // Handle gift products
-                if ((int)$cartRule->gift_product > 0) {
-                    $giftProductIds[] = (int)$cartRule->gift_product;
-                    $cartRule->active = 0;
-                    $cartRule->save();
-                }
-                if ($cart->removeCartRule($cartRule->id)) {
-                    PrestaShopLogger::addLog('Cart rule removed from cart: ' . $cartRule->id, 1, null, 'Cart', $cart->id, true);
-                    $cartRule->delete();
+        foreach ($products as $product) {
+            $idProduct = (int)$product['id_product'];
+            $idProductAttribute = !empty($product['id_product_attribute']) ? (int)$product['id_product_attribute'] : null;
+            $idCustomization = !empty($product['id_customization']) ? (int)$product['id_customization'] : null;
+
+            PrestaShopLogger::addLog("Checking product ID $idProduct for gift status", 1, null, 'Cart', $cart->id, true);
+
+            if ($this->isGiftProduct($idProduct)) {
+                PrestaShopLogger::addLog("Product $idProduct is a gift. Attempting to remove.", 1, null, 'Cart', $cart->id, true);
+
+                $removed = $cart->deleteProduct($idProduct, $idProductAttribute, $idCustomization);
+
+                if ($removed) {
+                    PrestaShopLogger::addLog("Successfully removed gift product: $idProduct", 1, null, 'Cart', $cart->id, true);
                     $removedAny = true;
                 } else {
-                    PrestaShopLogger::addLog('Failed to remove cart rule from cart: ' . $cartRule->id, 3, null, 'Cart', $cart->id, true);
+                    PrestaShopLogger::addLog("FAILED to remove gift product: $idProduct", 3, null, 'Cart', $cart->id, true);
                 }
+            } else {
+                PrestaShopLogger::addLog("Product ID $idProduct is not a gift", 1, null, 'Cart', $cart->id, true);
             }
         }
 
-        $cart->update(); // ensures total is recalculated
+        // Process cart rules
+        $cartRules = $cart->getCartRules();
+        PrestaShopLogger::addLog("Found " . count($cartRules) . " cart rules to process", 1, null, 'Cart', $cart->id, true);
 
-        // Second pass: Handle gift product removal
-        if (!empty($giftProductIds)) {
-            PrestaShopLogger::addLog('Preparing to remove gift products: ' . implode(',', $giftProductIds), 1, null, 'Cart', $cart->id, true);
-            $products = $cart->getProducts();
-            PrestaShopLogger::addLog('Cart contains ' . count($products) . ' products', 1, null, 'Cart', $cart->id, true);
+        foreach ($cartRules as $ruleData) {
+            $cartRule = new CartRule((int)$ruleData['id_cart_rule']);
+            $code = $cartRule->code;
 
-            foreach ($products as $product) {
-                if (in_array((int)$product['id_product'], $giftProductIds) && $product['is_gift']) {
+            PrestaShopLogger::addLog("Checking cart rule ID {$cartRule->id} with code '$code'", 1, null, 'Cart', $cart->id, true);
 
-                    PrestaShopLogger::addLog('Removing gift product: ID ' . $product['id_product'] . ' Attribute: ' . $product['id_product_attribute'], 1, null, 'Cart', $cart->id, true);
+            $manufacturerId = LoyaltyPointsHelper::extractManufacturerIdFromLoyaltyCode($code);
 
-                    // Use cart's deleteProduct method
-                    $result = $cart->deleteProduct(
-                        $product['id_product'],
-                        $product['id_product_attribute'],
-                        $product['id_customization']
-                    );
+            if ($manufacturerId !== null) {
+                PrestaShopLogger::addLog("Cart rule is loyalty-related. Removing rule ID {$cartRule->id} for brand $manufacturerId", 1, null, 'Cart', $cart->id, true);
 
-                    if ($result) {
-                        PrestaShopLogger::addLog('Successfully removed gift product: ' . $product['id_product'], 1, null, 'Cart', $cart->id, true);
-                    } else {
-                        PrestaShopLogger::addLog('Failed to remove gift product: ' . $product['id_product'], 3, null, 'Cart', $cart->id, true);
-                    }
-                }
+                $cart->removeCartRule($cartRule->id);
+                $cartRule->delete();
+
+                $removedAny = true;
+            } else {
+                PrestaShopLogger::addLog("Cart rule ID {$cartRule->id} is NOT a loyalty rule", 1, null, 'Cart', $cart->id, true);
             }
         }
-        if ($removedAny) {
-            $this->ajaxDie(json_encode([
-                'success' => true,
-                'message' => 'Loyalty points discounts and gifts removed from your cart.'
-            ]));
-        } else {
-            $this->ajaxDie(json_encode([
-                'success' => false,
-                'message' => 'No loyalty points discounts or gifts were applied to remove.'
-            ]));
-        }
+
+        $cart->update();
+
+        PrestaShopLogger::addLog("Finished processing. Any items removed: " . ($removedAny ? 'Yes' : 'No'), 1, null, 'Cart', $cart->id, true);
+
+        return $removedAny;
+    }
+
+    /**
+     * Check if product is a loyalty gift (based on used_as_gift column in DB)
+     */
+    private function isGiftProduct(int $idProduct): bool
+    {
+        $sql = 'SELECT used_as_gift FROM ' . _DB_PREFIX_ . 'product WHERE id_product = ' . (int)$idProduct;
+        $result = Db::getInstance()->getValue($sql);
+
+        PrestaShopLogger::addLog("Gift check for product $idProduct: used_as_gift = " . (int)$result, 1);
+
+        return (bool)$result;
     }
 }

@@ -277,20 +277,36 @@ class LoyaltyPointsHelper
         $cartRule->date_to = date('Y-m-d H:i:s', strtotime('+1 day'));
         $cartRule->quantity = 1;
         $cartRule->quantity_per_user = 1;
-        $cartRule->free_shipping = false;
-        $cartRule->gift_product = $giftProductId;
-        $cartRule->highlight = true;
+        $cartRule->minimum_amount = 0;
+        $cartRule->reduction_amount = $giftPrice;
+        $cartRule->reduction_tax = true;
         $cartRule->active = 1;
+        $cartRule->free_shipping = false;
+        $cartRule->product_restriction = 1;
 
         $productName = Product::getProductName($giftProductId);
         if (!$productName) {
-            return null;  // or throw error/log here
+            PrestaShopLogger::addLog('Invalid product name for gift product ID ' . $giftProductId, 3);
+            return null;
         }
-
         foreach (Language::getLanguages(true) as $lang) {
-            $cartRule->name[$lang['id_lang']] = 'Loyalty Gift - ' . $productName . ' (' . (int)$giftPrice . ' points)';
+            $cartRule->name[$lang['id_lang']] = self::getLoyaltyCartRuleName($manufacturerId);
         }
 
         return $cartRule->add() ? $cartRule : null;
+    }
+
+    /**
+     * Extract manufacturer ID from a loyalty cart rule code
+     *
+     * @param string $code
+     * @return int|null
+     */
+    public static function extractManufacturerIdFromLoyaltyCode($code)
+    {
+        if (preg_match('/^LOYALTY_(?:GIFT_)?BRAND_(\d+)_\d+$/', $code, $matches)) {
+            return (int)$matches[1]; // manufacturer ID
+        }
+        return null;
     }
 }
