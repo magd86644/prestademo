@@ -3,6 +3,8 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+use PrestaShop\PrestaShop\Core\Product\ProductExtraContent;
+
 class BrandLoyaltyPoints extends Module
 {
 
@@ -12,7 +14,7 @@ class BrandLoyaltyPoints extends Module
     {
         $this->name = 'brandloyaltypoints';
         $this->tab = 'administration';
-        $this->version = '1.0.8';
+        $this->version = '1.0.9';
         $this->author = 'Majd CHEIKH HANNA';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -99,7 +101,7 @@ class BrandLoyaltyPoints extends Module
             INDEX `idx_customer` (`id_customer`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=UTF8;';
 
-         if (!Db::getInstance()->execute($sqlLoyaltyPointsBreakdown)) {
+        if (!Db::getInstance()->execute($sqlLoyaltyPointsBreakdown)) {
             $error = Db::getInstance()->getMsgError();
             PrestaShopLogger::addLog('Error creating loyalty_points_order_brand table: ' . $error, 3);
             return false;
@@ -113,7 +115,8 @@ class BrandLoyaltyPoints extends Module
             !$this->registerHook('displayShoppingCart') ||
             !$this->registerHook('actionCartSave') ||
             !$this->registerHook('displayCustomerAccount') ||
-            !$this->registerHook('actionOrderStatusPostUpdate')
+            !$this->registerHook('actionOrderStatusPostUpdate') ||
+            !$this->registerHook('displayProductExtraContent')
         ) {
             return false;
         }
@@ -587,5 +590,44 @@ class BrandLoyaltyPoints extends Module
                 PrestaShopLogger::addLog('Loyalty points expiration reminder email sent to customer ID: ' . $row['id_customer'], 1, null, 'LoyaltyPoints', 0, true);
             }
         }
+    }
+
+    public function hookDisplayProductExtraContent($params)
+    {
+        /** @var Product $product */
+        $product = $params['product'];
+        $brandId = (int) $product->id_manufacturer;
+
+        // Get conversion rate for this brand
+        $conversionRate = LoyaltyPointsHelper::getConversionRateByManufacturer($brandId);
+        if ($conversionRate <= 0) {
+            return []; // No conversion rate set for this brand
+        }
+        // Calculate product price (tax incl.) for current context
+        $priceTaxIncl = Product::getPriceStatic(
+            $product->id,
+            true // tax included
+        );
+
+        // Calculate earned miles
+        $earnedMiles = 0;
+        if ($conversionRate > 0) {
+            $earnedMiles = floor($priceTaxIncl * $conversionRate);
+        }
+
+        $this->context->smarty->assign([
+            'earned_miles' => $earnedMiles,
+            'brand_name'   => Manufacturer::getNameById($brandId),
+        ]);
+
+        
+
+        $html = $this->fetch('module:brandloyaltypoints/views/templates/hook/earned_miles.tpl');
+
+        $extraContent = new ProductExtraContent();
+        $extraContent->setTitle($this->l('Loyalty Miles'))
+            ->setContent($html);
+
+        return [$extraContent];
     }
 }
