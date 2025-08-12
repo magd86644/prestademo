@@ -619,6 +619,8 @@ class BrandLoyaltyPoints extends Module
 
     public function hookActionCartSave($params)
     {
+        $test = json_encode($params);
+        PrestaShopLogger::addLog($test);
         if ((int) $this->context->cookie->id_cart) {
 
             if (!isset($cart)) {
@@ -630,6 +632,11 @@ class BrandLoyaltyPoints extends Module
             } else {
                 // Sync loyalty discounts with the cart
                 LoyaltyPointsHelper::syncLoyaltyDiscountsWithCart($cart);
+                $lastRemovedProductId = (int)Tools::getValue('last_removed_product_id');
+                PrestaShopLogger::addLog('remove gift cart '.$lastRemovedProductId);
+                if ($lastRemovedProductId) {
+                    LoyaltyPointsHelper::removeBrandGiftIfNoBrandProductsLeft($cart, $lastRemovedProductId);
+                }
             }
         }
     }

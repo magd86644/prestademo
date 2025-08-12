@@ -45,7 +45,7 @@ class BrandLoyaltyPointsRemoveLoyaltyPointsModuleFrontController extends ModuleF
 
             PrestaShopLogger::addLog("Checking product ID $idProduct for gift status", 1, null, 'Cart', $cart->id, true);
 
-            if ($this->isGiftProduct($idProduct)) {
+            if ( LoyaltyPointsHelper::isGiftProduct($idProduct)) {
                 PrestaShopLogger::addLog("Product $idProduct is a gift. Attempting to remove.", 1, null, 'Cart', $cart->id, true);
 
                 $removed = $cart->deleteProduct($idProduct, $idProductAttribute, $idCustomization);
@@ -92,16 +92,5 @@ class BrandLoyaltyPointsRemoveLoyaltyPointsModuleFrontController extends ModuleF
         return $removedAny;
     }
 
-    /**
-     * Check if product is a loyalty gift (based on used_as_gift column in DB)
-     */
-    private function isGiftProduct(int $idProduct): bool
-    {
-        $sql = 'SELECT used_as_gift FROM ' . _DB_PREFIX_ . 'product WHERE id_product = ' . (int)$idProduct;
-        $result = Db::getInstance()->getValue($sql);
-
-        PrestaShopLogger::addLog("Gift check for product $idProduct: used_as_gift = " . (int)$result, 1);
-
-        return (bool)$result;
-    }
+    
 }

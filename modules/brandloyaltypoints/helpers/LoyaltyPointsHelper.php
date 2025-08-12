@@ -309,4 +309,55 @@ class LoyaltyPointsHelper
         }
         return null;
     }
+
+    /**
+     * Check if product is a loyalty gift (based on used_as_gift column in DB)
+     */
+    public static function isGiftProduct(int $idProduct): bool
+    {
+        $sql = 'SELECT used_as_gift FROM ' . _DB_PREFIX_ . 'product WHERE id_product = ' . (int)$idProduct;
+        $result = Db::getInstance()->getValue($sql);
+
+        PrestaShopLogger::addLog("Gift check for product $idProduct: used_as_gift = " . (int)$result, 1);
+
+        return (bool)$result;
+    }
+
+    public static function removeBrandGiftIfNoBrandProductsLeft(Cart $cart, int $removedProductId)
+    {
+        $product = new Product($removedProductId);
+        $brandId = (int)$product->id_manufacturer;
+
+        if (!$brandId) {
+            PrestaShopLogger::addLog("Removed product $removedProductId has no brand", 1);
+            return;
+        }
+
+        $remainingProducts = $cart->getProducts();
+        $brandStillInCart = false;
+
+        foreach ($remainingProducts as $p) {
+            $prod = new Product((int)$p['id_product']);
+            if ((int)$prod->id_manufacturer === $brandId && !self::isGiftProduct($prod->id)) {
+                $brandStillInCart = true;
+                break;
+            }
+        }
+
+        if (!$brandStillInCart) {
+            PrestaShopLogger::addLog("No more regular products for brand $brandId. Removing gifts for brand.", 1, null, 'Cart', $cart->id, true);
+
+            foreach ($remainingProducts as $p) {
+                $prod = new Product((int)$p['id_product']);
+                if ((int)$prod->id_manufacturer === $brandId && self::isGiftProduct($prod->id)) {
+                    $cart->deleteProduct((int)$p['id_product'], (int)$p['id_product_attribute'] ?? null, (int)$p['id_customization'] ?? null);
+                    PrestaShopLogger::addLog("Removed gift product ID {$p['id_product']} for brand $brandId", 1, null, 'Cart', $cart->id, true);
+                }
+            }
+
+            $cart->update();
+        } else {
+            PrestaShopLogger::addLog("Brand $brandId still exists in cart. No gift removal needed.", 1, null, 'Cart', $cart->id, true);
+        }
+    }
 }
